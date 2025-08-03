@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Azure OpenAI Configuration -->
+    <key>ENDPOINT</key>
+    <string>https://YOUR_AZURE_OPENAI_ENDPOINT.openai.azure.com</string>
+    
+    <key>API_KEY</key>
+    <string>YOUR_AZURE_OPENAI_API_KEY</string>
+    
+    <key>DEPLOYMENT_NAME</key>
+    <string>gpt-35-turbo</string>
+    
+    <key>API_VERSION</key>
+    <string>2023-05-15</string>
+</dict>
+</plist>

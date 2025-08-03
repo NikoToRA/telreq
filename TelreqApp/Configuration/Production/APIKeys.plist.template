@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- OpenAI Configuration -->
+    <key>OPENAI_API_KEY</key>
+    <string>YOUR_OPENAI_API_KEY_HERE</string>
+    
+    <!-- Azure Storage Configuration -->
+    <key>AZURE_STORAGE_ACCOUNT</key>
+    <string>YOUR_AZURE_STORAGE_ACCOUNT_NAME</string>
+    
+    <key>AZURE_STORAGE_KEY</key>
+    <string>YOUR_AZURE_STORAGE_ACCESS_KEY</string>
+    
+    <key>AZURE_STORAGE_CONTAINER</key>
+    <string>call-data</string>
+    
+    <!-- Google Speech-to-Text API Key -->
+    <key>GOOGLE_SPEECH_API_KEY</key>
+    <string>YOUR_GOOGLE_SPEECH_API_KEY</string>
+</dict>
+</plist>

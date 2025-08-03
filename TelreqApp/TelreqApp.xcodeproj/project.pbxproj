@@ -1,0 +1,466 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		DA1234567890ABCD /* TelreqAppApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA1234567890ABCE /* TelreqAppApp.swift */; };
+		DA1234567890ABCF /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA1234567890ABD0 /* ContentView.swift */; };
+		DA1234567890ABD1 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DA1234567890ABD2 /* Assets.xcassets */; };
+		DA1234567890ABD3 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DA1234567890ABD4 /* Preview Assets.xcassets */; };
+		DA1234567890ABD5 /* CallData.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA1234567890ABD6 /* CallData.swift */; };
+		DA1234567890ABD7 /* ServiceProtocols.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA1234567890ABD8 /* ServiceProtocols.swift */; };
+		DA1234567890ABD9 /* AudioCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA1234567890ABDA /* AudioCaptureService.swift */; };
+		DA1234567890ABDB /* SpeechRecognitionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA1234567890ABDC /* SpeechRecognitionService.swift */; };
+		DA1234567890ABDD /* CallManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA1234567890ABDE /* CallManager.swift */; };
+		DA1234567890ABDF /* AzureStorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA1234567890ABE0 /* AzureStorageService.swift */; };
+		DA1234567890ABE1 /* TextProcessingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA1234567890ABE2 /* TextProcessingService.swift */; };
+		DA1234567890ABE3 /* EncryptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA1234567890ABE4 /* EncryptionService.swift */; };
+		DA1234567890ABE5 /* OfflineDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA1234567890ABE6 /* OfflineDataManager.swift */; };
+		DA1234567890ABE7 /* ServiceContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA1234567890ABE8 /* ServiceContainer.swift */; };
+		DA1234567890ABE9 /* CallHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA1234567890ABEA /* CallHistoryView.swift */; };
+		DA1234567890ABEB /* CallDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA1234567890ABEC /* CallDetailView.swift */; };
+		DA1234567890ABED /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA1234567890ABEE /* SettingsView.swift */; };
+		DA1234567890ABEF /* RealTimeTranscriptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA1234567890ABF0 /* RealTimeTranscriptionView.swift */; };
+		DA1234567890ABF1 /* SharingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA1234567890ABF2 /* SharingView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		DA1234567890ABCB /* TelreqApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TelreqApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DA1234567890ABCE /* TelreqAppApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelreqAppApp.swift; sourceTree = "<group>"; };
+		DA1234567890ABD0 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		DA1234567890ABD2 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		DA1234567890ABD4 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+		DA1234567890ABD6 /* CallData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallData.swift; sourceTree = "<group>"; };
+		DA1234567890ABD8 /* ServiceProtocols.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceProtocols.swift; sourceTree = "<group>"; };
+		DA1234567890ABDA /* AudioCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCaptureService.swift; sourceTree = "<group>"; };
+		DA1234567890ABDC /* SpeechRecognitionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechRecognitionService.swift; sourceTree = "<group>"; };
+		DA1234567890ABDE /* CallManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallManager.swift; sourceTree = "<group>"; };
+		DA1234567890ABE0 /* AzureStorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AzureStorageService.swift; sourceTree = "<group>"; };
+		DA1234567890ABE2 /* TextProcessingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextProcessingService.swift; sourceTree = "<group>"; };
+		DA1234567890ABE4 /* EncryptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EncryptionService.swift; sourceTree = "<group>"; };
+		DA1234567890ABE6 /* OfflineDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineDataManager.swift; sourceTree = "<group>"; };
+		DA1234567890ABE8 /* ServiceContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceContainer.swift; sourceTree = "<group>"; };
+		DA1234567890ABEA /* CallHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallHistoryView.swift; sourceTree = "<group>"; };
+		DA1234567890ABEC /* CallDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallDetailView.swift; sourceTree = "<group>"; };
+		DA1234567890ABEE /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		DA1234567890ABF0 /* RealTimeTranscriptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealTimeTranscriptionView.swift; sourceTree = "<group>"; };
+		DA1234567890ABF2 /* SharingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharingView.swift; sourceTree = "<group>"; };
+		DA1234567890ABF3 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		DA1234567890ABC8 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		DA1234567890ABC2 = {
+			isa = PBXGroup;
+			children = (
+				DA1234567890ABCD /* TelreqApp */,
+				DA1234567890ABCC /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		DA1234567890ABCC /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				DA1234567890ABCB /* TelreqApp.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		DA1234567890ABCD /* TelreqApp */ = {
+			isa = PBXGroup;
+			children = (
+				DA1234567890ABCE /* TelreqAppApp.swift */,
+				DA1234567890ABF4 /* Sources */,
+				DA1234567890ABD2 /* Assets.xcassets */,
+				DA1234567890ABF3 /* Info.plist */,
+				DA1234567890ABF5 /* Preview Content */,
+			);
+			path = TelreqApp;
+			sourceTree = "<group>";
+		};
+		DA1234567890ABF4 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				DA1234567890ABF6 /* Core */,
+				DA1234567890ABF7 /* Services */,
+				DA1234567890ABF8 /* UI */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		DA1234567890ABF5 /* Preview Content */ = {
+			isa = PBXGroup;
+			children = (
+				DA1234567890ABD4 /* Preview Assets.xcassets */,
+			);
+			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+		DA1234567890ABF6 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				DA1234567890ABF9 /* Models */,
+				DA1234567890ABFA /* Protocols */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		DA1234567890ABF7 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				DA1234567890ABDA /* AudioCaptureService.swift */,
+				DA1234567890ABDC /* SpeechRecognitionService.swift */,
+				DA1234567890ABDE /* CallManager.swift */,
+				DA1234567890ABE0 /* AzureStorageService.swift */,
+				DA1234567890ABE2 /* TextProcessingService.swift */,
+				DA1234567890ABE4 /* EncryptionService.swift */,
+				DA1234567890ABE6 /* OfflineDataManager.swift */,
+				DA1234567890ABE8 /* ServiceContainer.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		DA1234567890ABF8 /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				DA1234567890ABD0 /* ContentView.swift */,
+				DA1234567890ABEA /* CallHistoryView.swift */,
+				DA1234567890ABEC /* CallDetailView.swift */,
+				DA1234567890ABEE /* SettingsView.swift */,
+				DA1234567890ABF0 /* RealTimeTranscriptionView.swift */,
+				DA1234567890ABF2 /* SharingView.swift */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+		DA1234567890ABF9 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				DA1234567890ABD6 /* CallData.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		DA1234567890ABFA /* Protocols */ = {
+			isa = PBXGroup;
+			children = (
+				DA1234567890ABD8 /* ServiceProtocols.swift */,
+			);
+			path = Protocols;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		DA1234567890ABCA /* TelreqApp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DA1234567890ABF9 /* Build configuration list for PBXNativeTarget "TelreqApp" */;
+			buildPhases = (
+				DA1234567890ABC7 /* Sources */,
+				DA1234567890ABC8 /* Frameworks */,
+				DA1234567890ABC9 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = TelreqApp;
+			packageProductDependencies = (
+			);
+			productName = TelreqApp;
+			productReference = DA1234567890ABCB /* TelreqApp.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		DA1234567890ABC3 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					DA1234567890ABCA = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = DA1234567890ABC6 /* Build configuration list for PBXProject "TelreqApp" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				ja,
+			);
+			mainGroup = DA1234567890ABC2;
+			packageReferences = (
+			);
+			productRefGroup = DA1234567890ABCC /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				DA1234567890ABCA /* TelreqApp */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		DA1234567890ABC9 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DA1234567890ABD3 /* Preview Assets.xcassets in Resources */,
+				DA1234567890ABD1 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		DA1234567890ABC7 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DA1234567890ABCF /* ContentView.swift in Sources */,
+				DA1234567890ABD5 /* CallData.swift in Sources */,
+				DA1234567890ABD7 /* ServiceProtocols.swift in Sources */,
+				DA1234567890ABD9 /* AudioCaptureService.swift in Sources */,
+				DA1234567890ABDB /* SpeechRecognitionService.swift in Sources */,
+				DA1234567890ABDD /* CallManager.swift in Sources */,
+				DA1234567890ABDF /* AzureStorageService.swift in Sources */,
+				DA1234567890ABE1 /* TextProcessingService.swift in Sources */,
+				DA1234567890ABE3 /* EncryptionService.swift in Sources */,
+				DA1234567890ABE5 /* OfflineDataManager.swift in Sources */,
+				DA1234567890ABE7 /* ServiceContainer.swift in Sources */,
+				DA1234567890ABE9 /* CallHistoryView.swift in Sources */,
+				DA1234567890ABEB /* CallDetailView.swift in Sources */,
+				DA1234567890ABED /* SettingsView.swift in Sources */,
+				DA1234567890ABEF /* RealTimeTranscriptionView.swift in Sources */,
+				DA1234567890ABF1 /* SharingView.swift in Sources */,
+				DA1234567890ABCD /* TelreqAppApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		DA1234567890ABF7 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		DA1234567890ABF8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STRING = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		DA1234567890ABFA /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"TelreqApp/Preview Content\"";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TelreqApp/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Telreq";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "通話音声の文字起こしのためにマイクへのアクセスが必要です";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "音声認識機能を使用するために音声認識へのアクセスが必要です";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.telreq.TelreqApp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		DA1234567890ABFB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"TelreqApp/Preview Content\"";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TelreqApp/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Telreq";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "通話音声の文字起こしのためにマイクへのアクセスが必要です";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "音声認識機能を使用するために音声認識へのアクセスが必要です";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.telreq.TelreqApp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		DA1234567890ABC6 /* Build configuration list for PBXProject "TelreqApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DA1234567890ABF7 /* Debug */,
+				DA1234567890ABF8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		DA1234567890ABF9 /* Build configuration list for PBXNativeTarget "TelreqApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DA1234567890ABFA /* Debug */,
+				DA1234567890ABFB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = DA1234567890ABC3 /* Project object */;
+}
