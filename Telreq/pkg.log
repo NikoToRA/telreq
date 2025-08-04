@@ -1,0 +1,8 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -resolvePackageDependencies -scheme Telreq
+
+Resolve Package Graph
+
+Updating from https://github.com/Azure/azure-sdk-for-ios.git
+
+the package manifest at '/Package.swift' cannot be accessed (/Package.swift doesn't exist in file system) in https://github.com/Azure/azure-sdk-for-ios.git
