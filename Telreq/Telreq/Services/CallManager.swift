@@ -368,21 +368,7 @@ final class CallManager: NSObject, CallManagerProtocol, ObservableObject {
                 confidence: recognitionResult.confidence,
                 startTime: currentCall?.startTime ?? Date(),
                 endTime: Date(),
-                deviceInfo: {
-                    #if canImport(UIKit) && !os(macOS)
-                    return DeviceInfo(
-                        deviceModel: UIDevice.current.model,
-                        systemVersion: UIDevice.current.systemVersion,
-                        appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
-                    )
-                    #else
-                    return DeviceInfo(
-                        deviceModel: "Mac",
-                        systemVersion: ProcessInfo.processInfo.operatingSystemVersionString,
-                        appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
-                    )
-                    #endif
-                }(),
+                deviceInfo: await createDeviceInfo(),
                 networkInfo: NetworkInfo(
                     connectionType: .wifi
                 )
@@ -437,6 +423,24 @@ final class CallManager: NSObject, CallManagerProtocol, ObservableObject {
     }
     
     // MARK: - Private Methods
+    
+    /// MainActorでDeviceInfo作成
+    @MainActor
+    private func createDeviceInfo() -> DeviceInfo {
+        #if canImport(UIKit) && !os(macOS)
+        return DeviceInfo(
+            deviceModel: UIDevice.current.model,
+            systemVersion: UIDevice.current.systemVersion,
+            appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
+        )
+        #else
+        return DeviceInfo(
+            deviceModel: "Mac",
+            systemVersion: ProcessInfo.processInfo.operatingSystemVersionString,
+            appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
+        )
+        #endif
+    }
     
     /// 設定からtranscription方法を取得
     private func getSelectedTranscriptionMethod() -> TranscriptionMethod {
@@ -1038,9 +1042,8 @@ extension CallManager: SpeechRecognitionDelegate {
     private func handleSpeechRecognitionResult(_ result: SpeechRecognitionResult) async {
         // 重複処理を防ぐためのチェック
         return await withCheckedContinuation { continuation in
-            processingQueue.async {
-                guard !self.isProcessingResult else {
-                    self.logger.warning("Speech recognition result processing already in progress, skipping...")
+            processingQueue.async { [weak self] in
+                guard let self = self, !self.isProcessingResult else {
                     continuation.resume()
                     return
                 }
@@ -1048,11 +1051,11 @@ extension CallManager: SpeechRecognitionDelegate {
                 self.isProcessingResult = true
                 self.logger.info("🔄 Processing speech recognition result (length: \(result.text.count))")
                 
-                Task {
-                    await self.performSpeechProcessing(result)
+                Task { [weak self] in
+                    await self?.performSpeechProcessing(result)
                     
-                    self.processingQueue.async {
-                        self.isProcessingResult = false
+                    self?.processingQueue.async { [weak self] in
+                        self?.isProcessingResult = false
                         continuation.resume()
                     }
                 }

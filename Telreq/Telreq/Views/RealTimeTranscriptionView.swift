@@ -735,7 +735,7 @@ class RealTimeTranscriptionViewModel: ObservableObject, SpeechRecognitionDelegat
     }
     
     deinit {
-        Task { [weak self] in
+        Task.detached { [weak self] in
             await self?.cleanup()
         }
     }

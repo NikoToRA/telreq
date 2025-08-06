@@ -30,7 +30,7 @@ final class AsyncDebugHelpers {
         logger.info("🚀 Starting async task: \(taskId) on thread: \(Thread.current)")
         
         // タスクを記録
-        _ = taskQueue.sync {
+        taskQueue.sync {
             self.activeTasks[taskId] = startTime
         }
         
@@ -38,7 +38,7 @@ final class AsyncDebugHelpers {
             let duration = Date().timeIntervalSince(startTime)
             logger.info("✅ Completed async task: \(taskId) in \(String(format: "%.2f", duration))s")
             
-            _ = taskQueue.sync {
+            taskQueue.sync {
                 self.activeTasks.removeValue(forKey: taskId)
             }
         }
@@ -141,7 +141,8 @@ final class AsyncDebugHelpers {
             }
             #endif
         }
-        logger.info("🧹 Memory cleanup completed. New usage: \(String(format: "%.1f", self.getMemoryUsage())) MB")
+        let memoryUsage = self.getMemoryUsage()
+        logger.info("🧹 Memory cleanup completed. New usage: \(String(format: "%.1f", memoryUsage)) MB")
     }
 }
 

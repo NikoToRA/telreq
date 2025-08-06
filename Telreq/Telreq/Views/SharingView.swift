@@ -949,11 +949,9 @@ class SharingViewModel: ObservableObject {
         isLoading = true
         
         do {
-            async let _ = loadReceivedSharedRecords()
-            async let _ = loadSentSharedRecords()
-            async let _ = loadSharingRequests()
-            
-            _ = try await (loadReceivedSharedRecords(), loadSentSharedRecords(), loadSharingRequests())
+            try await loadReceivedSharedRecords()
+            try await loadSentSharedRecords()
+            try await loadSharingRequests()
             
             logger.info("Sharing data loaded successfully")
         } catch {
