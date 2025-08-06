@@ -152,40 +152,31 @@ final class ServiceContainer: ObservableObject {
             throw AppError.invalidConfiguration
         }
         
+        // Azure Storage の初期化（失敗してもローカル処理で続行）
         do {
-            // Azure Storage の初期化（失敗してもローカル処理で続行）
-            do {
-                try await azureStorageService.initializeStorage()
-                logger.info("Azure Storage initialized successfully")
-            } catch {
-                logger.warning("Azure Storage initialization failed, continuing with local storage: \(error.localizedDescription)")
-            }
-            
-            // 音声認識サービスの権限確認
-            let speechPermission = await speechRecognitionService.checkSpeechRecognitionPermission()
-            if !speechPermission {
-                logger.warning("Speech recognition permission not granted")
-            } else {
-                logger.info("Speech recognition permission granted")
-            }
-            
-            // 音声キャプチャサービスの初期化
-            let audioPermission = await audioCaptureService.requestMicrophonePermission()
-            if !audioPermission {
-                logger.warning("Microphone permission not granted")
-            } else {
-                logger.info("Microphone permission granted")
-            }
-            
-            logger.info("All services initialized successfully")
+            try await azureStorageService.initializeStorage()
+            logger.info("Azure Storage initialized successfully")
         } catch {
-            logger.error("Failed to initialize services: \(error.localizedDescription)")
-            // 重要: 権限系のエラー以外は続行
-            let hasPermission = await speechRecognitionService.checkSpeechRecognitionPermission()
-            if !hasPermission {
-                throw error // 音声認識権限がない場合のみエラーとして扱う
-            }
+            logger.warning("Azure Storage initialization failed, continuing with local storage: \(error.localizedDescription)")
         }
+        
+        // 音声認識サービスの権限確認
+        let speechPermission = await speechRecognitionService.checkSpeechRecognitionPermission()
+        if !speechPermission {
+            logger.warning("Speech recognition permission not granted")
+        } else {
+            logger.info("Speech recognition permission granted")
+        }
+        
+        // 音声キャプチャサービスの初期化
+        let audioPermission = await audioCaptureService.requestMicrophonePermission()
+        if !audioPermission {
+            logger.warning("Microphone permission not granted")
+        } else {
+            logger.info("Microphone permission granted")
+        }
+        
+        logger.info("All services initialized successfully")
     }
     
     /// 権限処理を考慮したサービス初期化
@@ -296,9 +287,7 @@ extension ServiceContainer {
             encryptionService.printDebugInfo()
         }
         
-        if let speechService = speechRecognitionService as? SpeechRecognitionService {
-            speechService.printDebugInfo()
-        }
+        speechRecognitionService.printDebugInfo()
         
         if let textService = textProcessingService as? TextProcessingService {
             let testText = "これはテスト用のテキストです。"

@@ -645,9 +645,9 @@ final class SpeechRecognitionService: NSObject, SpeechRecognitionServiceProtocol
             segments: []
         )
         
-        DispatchQueue.main.async {
-            self.delegate?.speechRecognition(didRecognizeText: displayText, isFinal: true)
-            self.delegate?.speechRecognition(didCompleteWithResult: speechResult)
+        DispatchQueue.main.async { [weak self] in
+            self?.delegate?.speechRecognition(didRecognizeText: displayText, isFinal: true)
+            self?.delegate?.speechRecognition(didCompleteWithResult: speechResult)
         }
         
         return displayText

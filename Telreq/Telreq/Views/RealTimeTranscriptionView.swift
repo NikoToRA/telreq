@@ -735,8 +735,8 @@ class RealTimeTranscriptionViewModel: ObservableObject, SpeechRecognitionDelegat
     }
     
     deinit {
-        Task {
-            await cleanup()
+        Task { [weak self] in
+            await self?.cleanup()
         }
     }
     
@@ -862,7 +862,7 @@ class RealTimeTranscriptionViewModel: ObservableObject, SpeechRecognitionDelegat
     
     /// サービスを初期化
     private func initializeServices() async {
-        guard let container = serviceContainer else {
+        guard serviceContainer != nil else {
             logger.warning("ServiceContainer not available for initialization")
             return
         }
@@ -995,7 +995,7 @@ class RealTimeTranscriptionViewModel: ObservableObject, SpeechRecognitionDelegat
     
     /// 音声レベルを更新
     private func updateAudioLevel() {
-        guard let container = serviceContainer,
+        guard serviceContainer != nil,
               isTranscribing && !isPaused else {
             audioLevel = 0.0
             return

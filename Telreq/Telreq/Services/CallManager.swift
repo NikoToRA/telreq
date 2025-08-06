@@ -338,7 +338,7 @@ final class CallManager: NSObject, CallManagerProtocol, ObservableObject {
     func processCallTextAfterEnd() async {
         logger.info("Processing call text after end")
         
-        guard let callInfo = currentCall else {
+        guard currentCall != nil else {
             logger.warning("No call info available for text processing")
             return
         }

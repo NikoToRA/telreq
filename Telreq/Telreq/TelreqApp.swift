@@ -36,12 +36,18 @@ struct TelreqApp: App {
     private func requestPermissions() {
         // マイクの権限をリクエスト (iOS のみ)
         #if canImport(AVFoundation) && !os(macOS)
-        AVAudioSession.sharedInstance().requestRecordPermission { granted in
-            DispatchQueue.main.async {
-                if granted {
-                    print("Microphone access granted")
-                } else {
-                    print("Microphone access denied")
+        Task {
+            let session = AVAudioSession.sharedInstance()
+            _ = await withCheckedContinuation { continuation in
+                session.requestRecordPermission { granted in
+                    DispatchQueue.main.async {
+                        if granted {
+                            print("Microphone access granted")
+                        } else {
+                            print("Microphone access denied")
+                        }
+                        continuation.resume(returning: granted)
+                    }
                 }
             }
         }

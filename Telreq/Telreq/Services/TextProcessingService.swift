@@ -322,30 +322,15 @@ final class TextProcessingService: TextProcessingServiceProtocol {
         return await withTaskGroup(of: [String].self, returning: [String].self) { group in
             // 各タスクでエラーハンドリングを追加
             group.addTask {
-                do {
-                    return self.extractKeywordsWithTFIDF(text)
-                } catch {
-                    // サイレントにエラー処理
-                    return []
-                }
+                return self.extractKeywordsWithTFIDF(text)
             }
             
             group.addTask {
-                do {
-                    return self.extractNamedEntities(text)
-                } catch {
-                    // サイレントにエラー処理
-                    return []
-                }
+                return self.extractNamedEntities(text)
             }
             
             group.addTask {
-                do {
-                    return self.extractImportantPhrases(text)
-                } catch {
-                    // サイレントにエラー処理
-                    return []
-                }
+                return self.extractImportantPhrases(text)
             }
             
             var allKeywords: Set<String> = []
@@ -505,7 +490,7 @@ final class TextProcessingService: TextProcessingServiceProtocol {
         let prompt = buildSummaryPrompt(text, language: language)
         let systemPrompt = getSystemPrompt(for: language)
         
-        var url = config.endpoint.appendingPathComponent("/openai/deployments/\(config.deploymentName)/chat/completions")
+        let url = config.endpoint.appendingPathComponent("/openai/deployments/\(config.deploymentName)/chat/completions")
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
         components.queryItems = [URLQueryItem(name: "api-version", value: "2023-05-15")]
         
@@ -706,19 +691,14 @@ final class TextProcessingService: TextProcessingServiceProtocol {
         
         var entities: [String] = []
         
-        do {
-            localTagger.enumerateTags(in: text.startIndex..<text.endIndex, unit: .word, scheme: .nameType) { tag, range in
-                if let tag = tag, tag == .personalName || tag == .organizationName || tag == .placeName {
-                    let entity = String(text[range]).trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !entity.isEmpty {
-                        entities.append(entity)
-                    }
+        localTagger.enumerateTags(in: text.startIndex..<text.endIndex, unit: .word, scheme: .nameType) { tag, range in
+            if let tag = tag, tag == .personalName || tag == .organizationName || tag == .placeName {
+                let entity = String(text[range]).trimmingCharacters(in: .whitespacesAndNewlines)
+                if !entity.isEmpty {
+                    entities.append(entity)
                 }
-                return true
             }
-        } catch {
-            logger.error("Error in extractNamedEntities: \(error.localizedDescription)")
-            return []
+            return true
         }
         
         return Array(Set(entities))
@@ -738,19 +718,14 @@ final class TextProcessingService: TextProcessingServiceProtocol {
         
         var phrases: [String] = []
         
-        do {
-            localTagger.enumerateTags(in: text.startIndex..<text.endIndex, unit: .word, scheme: .lexicalClass) { tag, range in
-                if tag == .noun {
-                    let word = String(text[range]).trimmingCharacters(in: .whitespacesAndNewlines)
-                    if word.count > 2 && !isStopWord(word) && !word.isEmpty {
-                        phrases.append(word)
-                    }
+        localTagger.enumerateTags(in: text.startIndex..<text.endIndex, unit: .word, scheme: .lexicalClass) { tag, range in
+            if tag == .noun {
+                let word = String(text[range]).trimmingCharacters(in: .whitespacesAndNewlines)
+                if word.count > 2 && !isStopWord(word) && !word.isEmpty {
+                    phrases.append(word)
                 }
-                return true
             }
-        } catch {
-            logger.error("Error in extractImportantPhrases: \(error.localizedDescription)")
-            return []
+            return true
         }
         
         return Array(Set(phrases))
