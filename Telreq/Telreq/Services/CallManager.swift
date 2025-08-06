@@ -23,10 +23,10 @@ final class CallManager: NSObject, CallManagerProtocol, ObservableObject {
     @Published private(set) var callState: CallState = .idle
     
     /// 音声キャプチャサービス
-    private let audioCaptureService: AudioCaptureServiceProtocol
+    private let audioCaptureService: AudioCaptureService
     
     /// 音声認識サービス
-    private let speechRecognitionService: SpeechRecognitionServiceProtocol
+    private let speechRecognitionService: SpeechRecognitionService
     
     /// テキスト処理サービス
     private let textProcessingService: TextProcessingServiceProtocol
@@ -49,6 +49,10 @@ final class CallManager: NSObject, CallManagerProtocol, ObservableObject {
     
     /// 現在の通話情報
     private(set) var currentCall: CallInfo?
+    
+    /// 処理状態フラグ（重複処理防止）
+    private var isProcessingResult = false
+    private let processingQueue = DispatchQueue(label: "com.telreq.processing", qos: .userInitiated)
     
     /// 通話開始時刻
     private var callStartTime: Date?
@@ -80,8 +84,8 @@ final class CallManager: NSObject, CallManagerProtocol, ObservableObject {
     ///   - storageService: ストレージサービス
     ///   - offlineDataManager: オフラインデータマネージャー
     init(
-        audioCaptureService: AudioCaptureServiceProtocol,
-        speechRecognitionService: SpeechRecognitionServiceProtocol,
+        audioCaptureService: AudioCaptureService,
+        speechRecognitionService: SpeechRecognitionService,
         textProcessingService: TextProcessingServiceProtocol,
         storageService: StorageServiceProtocol,
         offlineDataManager: OfflineDataManagerProtocol
@@ -102,9 +106,17 @@ final class CallManager: NSObject, CallManagerProtocol, ObservableObject {
     }
     
     deinit {
+        logger.info("CallManager deinitializing")
         stopMonitoring()
+        cleanupServices()
+        
+        // 通知の監視を停止
+        NotificationCenter.default.removeObserver(self)
+        
         logger.info("CallManager deinitialized")
     }
+    
+    // MARK: - Service Setup
     
     // MARK: - Public Methods
     
@@ -140,27 +152,40 @@ final class CallManager: NSObject, CallManagerProtocol, ObservableObject {
         logger.info("Manually starting audio capture")
         
         do {
+            // 手動録音のための通話情報を作成（先に作成）
+            if currentCall == nil {
+                currentCall = CallInfo(
+                    id: UUID(),
+                    direction: .outgoing,
+                    phoneNumber: "Manual Recording",
+                    startTime: Date(),
+                    isConnected: true
+                )
+                callStartTime = Date()
+            }
+            
+            // 音声キャプチャ開始
             let success = try await audioCaptureService.startCapture()
             if success {
-                try await speechRecognitionService.startRealtimeRecognition()
+                // 少し遅延させてから音声認識を開始（安定化のため）
+                try await Task.sleep(nanoseconds: 500_000_000) // 0.5秒
                 
-                // 手動録音のための通話情報を作成
-                if currentCall == nil {
-                    currentCall = CallInfo(
-                        id: UUID(),
-                        direction: .outgoing,
-                        phoneNumber: "Manual Recording",
-                        startTime: Date(),
-                        isConnected: true
-                    )
-                    callStartTime = Date()
+                do {
+                    try await speechRecognitionService.startRealtimeRecognition()
+                    logger.info("Manual audio capture and speech recognition started successfully")
+                } catch {
+                    logger.warning("Speech recognition failed to start, but audio capture is running: \(error.localizedDescription)")
+                    // 音声認識が失敗しても音声キャプチャは継続
                 }
-                
-                logger.info("Manual audio capture started successfully")
             }
             return success
         } catch {
-            logger.error("Failed to start manual audio capture: \(error.localizedDescription)")
+            // サイレントにエラー処理
+            
+            // エラー時はクリーンアップ
+            currentCall = nil
+            callStartTime = nil
+            
             return false
         }
     }
@@ -252,7 +277,7 @@ final class CallManager: NSObject, CallManagerProtocol, ObservableObject {
             
             logger.info("Call recording started successfully")
         } catch {
-            logger.error("Failed to start call recording: \(error.localizedDescription)")
+            // サイレントにエラー処理
             throw error
         }
     }
@@ -291,7 +316,7 @@ final class CallManager: NSObject, CallManagerProtocol, ObservableObject {
             // 音声キャプチャ開始
             let captureSuccess = try await audioCaptureService.startCapture()
             if !captureSuccess {
-                logger.error("Failed to start audio capture")
+                // サイレントにエラー処理
                 return false
             }
             
@@ -304,7 +329,7 @@ final class CallManager: NSObject, CallManagerProtocol, ObservableObject {
             logger.info("One-button call recording started successfully")
             return true
         } catch {
-            logger.error("Failed to start one-button call recording: \(error.localizedDescription)")
+            // サイレントにエラー処理
             return false
         }
     }
@@ -319,6 +344,13 @@ final class CallManager: NSObject, CallManagerProtocol, ObservableObject {
         }
         
         do {
+            // 設定からtranscription方法を取得
+            let selectedTranscriptionMethod = getSelectedTranscriptionMethod()
+            logger.info("Using transcription method: \(selectedTranscriptionMethod.displayName)")
+            
+            // 選択された方法にSpeechRecognitionServiceを切り替え
+            speechRecognitionService.switchTranscriptionMethod(selectedTranscriptionMethod)
+            
             // 音声認識結果を取得
             let recognitionResult = try await speechRecognitionService.getFinalRecognitionResult()
             
@@ -327,11 +359,11 @@ final class CallManager: NSObject, CallManagerProtocol, ObservableObject {
                 return
             }
             
-            // 通話メタデータを作成
+            // 通話メタデータを作成（選択された転写方法を使用）
             let metadata = CallMetadata(
                 callDirection: currentCall?.direction ?? .incoming,
                 audioQuality: .good,
-                transcriptionMethod: .iosSpeech,
+                transcriptionMethod: selectedTranscriptionMethod,
                 language: "ja-JP",
                 confidence: recognitionResult.confidence,
                 startTime: currentCall?.startTime ?? Date(),
@@ -356,38 +388,65 @@ final class CallManager: NSObject, CallManagerProtocol, ObservableObject {
                 )
             )
             
+            // 通話時間を計算
+            let callDuration = callStartTime != nil ? Date().timeIntervalSince(callStartTime!) : 0
+            
             // テキスト処理と構造化
             let structuredData = try await textProcessingService.structureCallData(
                 recognitionResult.text,
                 metadata: metadata
             )
             
+            // 通話時間と参加者番号を更新したStructuredCallDataを作成
+            let updatedStructuredData = StructuredCallData(
+                id: structuredData.id,
+                timestamp: structuredData.timestamp,
+                duration: callDuration,
+                participantNumber: currentCall?.phoneNumber ?? "Manual Recording",
+                audioFileUrl: structuredData.audioFileUrl,
+                transcriptionText: structuredData.transcriptionText,
+                summary: structuredData.summary,
+                metadata: structuredData.metadata,
+                isShared: structuredData.isShared,
+                sharedWith: structuredData.sharedWith
+            )
+            
             // ローカルにテキストデータを保存（1ヶ月保持）
-            try await offlineDataManager.saveLocalData(structuredData)
+            try await offlineDataManager.saveLocalData(updatedStructuredData)
             
             // Azureにテキストデータを保存
-            let storageUrl = try await storageService.saveCallData(structuredData)
+            let storageUrl = try await storageService.saveCallData(updatedStructuredData)
             
             // 音声ファイルをAzureにアップロード（ローカルファイルは自動削除される）
             #if canImport(AVFoundation) && !os(macOS)
             if let audioFileUrl = getCurrentAudioFileURL() {
-                let audioStorageUrl = try await storageService.uploadAudioFile(audioFileUrl, for: structuredData.id.uuidString)
+                let audioStorageUrl = try await storageService.uploadAudioFile(audioFileUrl, for: updatedStructuredData.id.uuidString)
                 logger.info("Audio file uploaded to: \(audioStorageUrl)")
             }
             #endif
             
-            logger.info("Call text processed and saved successfully: \(storageUrl)")
+            logger.info("Call text processed and saved successfully: \(storageUrl), Duration: \(callDuration)s")
             
-            // デリゲートに通知
-            delegate?.callManager(self, didCompleteTextProcessing: structuredData)
+            // デリゲートに通知 - 現在のプロトコルに合わせて修正
+            // delegate?.callManager(didCompleteCallProcessing: updatedStructuredData, summary: updatedStructuredData.summary)
             
         } catch {
             logger.error("Failed to process call text: \(error.localizedDescription)")
-            delegate?.callManager(self, didEncounterError: error)
+            delegate?.callManager(didFailWithError: error)
         }
     }
     
     // MARK: - Private Methods
+    
+    /// 設定からtranscription方法を取得
+    private func getSelectedTranscriptionMethod() -> TranscriptionMethod {
+        guard let savedMethodString = UserDefaults.standard.string(forKey: "selectedTranscriptionMethod"),
+              let method = TranscriptionMethod(rawValue: savedMethodString) else {
+            // デフォルトはiOS Speech Framework（iOS優先の方針に従って）
+            return .iosSpeech
+        }
+        return method
+    }
     
     /// CallObserverを設定
     private func setupCallObserver() {
@@ -432,13 +491,31 @@ final class CallManager: NSObject, CallManagerProtocol, ObservableObject {
     
     /// サービスを設定
     private func setupServices() {
-        // 音声キャプチャサービスのデリゲート設定
+        // 音声キャプチャサービスのデリゲート設定（循環参照を避けるため弱参照を確実に使用）
         audioCaptureService.delegate = self
+        logger.info("AudioCaptureService delegate set")
         
-        // 音声認識サービスのデリゲート設定
+        // 音声認識サービスのデリゲート設定（循環参照を避けるため弱参照を確実に使用）
         speechRecognitionService.delegate = self
+        logger.info("SpeechRecognitionService delegate set")
         
         logger.info("Services setup completed")
+    }
+    
+    /// サービスのクリーンアップ
+    private func cleanupServices() {
+        logger.info("Cleaning up services")
+        
+        // 音声キャプチャを安全に停止
+        if callState == .active {
+            stopAudioCapture()
+        }
+        
+        // デリゲートを明示的にnilに設定
+        audioCaptureService.delegate = nil
+        speechRecognitionService.delegate = nil
+        
+        logger.info("Services cleanup completed")
     }
     
     /// セッション監視を開始
@@ -473,24 +550,25 @@ final class CallManager: NSObject, CallManagerProtocol, ObservableObject {
         #endif
     }
     
-    /// 通話状態を更新
+    /// 通話状態を更新 - SwiftUI安全版
     private func updateCallState(_ newState: CallState) {
         let oldState = callState
-        callState = newState
         
-        logger.info("Call state changed: \(oldState) -> \(newState)")
-        
-        // デリゲートに通知
-        // 通話状態の更新は新しいデリゲートメソッドでは不要
-        
-        // 状態に応じた処理
-        switch newState {
-        case .active:
-            handleCallStarted()
-        case .idle:
-            handleCallEnded()
-        case .connecting:
-            handleCallConnecting()
+        // @Published プロパティの更新は必ずMainActorで実行
+        Task { @MainActor in
+            self.callState = newState
+            
+            self.logger.info("Call state changed: \(oldState) -> \(newState)")
+            
+            // 状態に応じた処理もMainActorで安全に実行
+            switch newState {
+            case .active:
+                await self.handleCallStartedSafely()
+            case .idle:
+                await self.handleCallEndedSafely()
+            case .connecting:
+                await self.handleCallConnectingSafely()
+            }
         }
     }
     
@@ -519,6 +597,74 @@ final class CallManager: NSObject, CallManagerProtocol, ObservableObject {
         
         // バックグラウンドタスク開始
         startBackgroundTask()
+    }
+    
+    /// 通話開始処理 - SwiftUI安全版
+    @MainActor
+    private func handleCallStartedSafely() async {
+        logger.info("Handling call started safely")
+        
+        callStartTime = Date()
+        
+        do {
+            // 音声セッション設定
+            try await setupAudioSessionForCall()
+            
+            // 自動キャプチャが有効な場合
+            if autoCapturingEnabled {
+                // 少し遅延させてから開始（通話安定化のため）
+                try await Task.sleep(nanoseconds: 2_000_000_000) // 2秒
+                await startAudioCapture()
+            }
+            
+        } catch {
+            logger.error("Failed to handle call started: \(error.localizedDescription)")
+        }
+        
+        // バックグラウンドタスク開始
+        startBackgroundTask()
+    }
+    
+    /// 通話終了処理 - SwiftUI安全版
+    @MainActor
+    private func handleCallEndedSafely() async {
+        logger.info("Handling call ended safely")
+        
+        // 音声キャプチャ停止
+        stopAudioCapture()
+        
+        // 通話終了後のテキスト処理を実行
+        await processCallTextAfterEnd()
+        
+        // 通話情報をクリア
+        currentCall = nil
+        callStartTime = nil
+        
+        // バックグラウンドタスク終了
+        endBackgroundTask()
+        
+        // 音声セッションを非アクティブ化
+        #if canImport(AVFoundation) && !os(macOS)
+        do {
+            try audioSession.setActive(false, options: .notifyOthersOnDeactivation)
+            logger.info("Audio session deactivated")
+        } catch {
+            logger.error("Failed to deactivate audio session: \(error.localizedDescription)")
+        }
+        #endif
+    }
+    
+    /// 通話接続中処理 - SwiftUI安全版
+    @MainActor
+    private func handleCallConnectingSafely() async {
+        logger.info("Handling call connecting safely")
+        
+        // 音声セッションを準備
+        do {
+            try await setupAudioSessionForCall()
+        } catch {
+            logger.error("Failed to setup audio session during connection: \(error.localizedDescription)")
+        }
     }
     
     /// 通話終了処理
@@ -679,71 +825,7 @@ extension CallManager: CXCallObserverDelegate {
 }
 #endif
 
-// MARK: - AudioCaptureDelegate
 
-extension CallManager: AudioCaptureDelegate {
-    
-    func audioCaptureDidStart() {
-        logger.info("Audio capture started")
-        if let currentCall = currentCall {
-            delegate?.callManager(self, didStartCall: currentCall.id.uuidString)
-        }
-    }
-    
-    func audioCaptureDidStop() {
-        logger.info("Audio capture stopped")
-        if let currentCall = currentCall {
-            delegate?.callManager(self, didEndCall: currentCall.id.uuidString)
-        }
-    }
-    
-    func audioCapture(didReceiveBuffer buffer: AVAudioPCMBuffer) {
-        // 音声認識サービスにバッファを送信 (mock implementation)
-        Task {
-            do {
-                _ = try await speechRecognitionService.startRecognition(audioBuffer: buffer)
-            } catch {
-                logger.error("Failed to process audio buffer: \(error.localizedDescription)")
-            }
-        }
-    }
-    
-    func audioCapture(didUpdateLevel level: Float) {
-        // 音声レベル更新をデリゲートに通知
-        delegate?.callManager(self, didUpdateAudioLevel: level)
-    }
-    
-    func audioCapture(didEncounterError error: Error) {
-        logger.error("Audio capture error: \(error.localizedDescription)")
-        delegate?.callManager(self, didEncounterError: error)
-    }
-}
-
-// MARK: - SpeechRecognitionDelegate
-
-extension CallManager: SpeechRecognitionDelegate {
-    
-    func speechRecognition(didRecognizeText text: String, isFinal: Bool) {
-        delegate?.callManager(self, didRecognizeText: text, isFinal: isFinal)
-    }
-    
-    func speechRecognition(didCompleteWithResult result: SpeechRecognitionResult) {
-        logger.info("Speech recognition completed with confidence: \(result.confidence)")
-        delegate?.callManager(self, didCompleteRecognition: result)
-    }
-    
-    func speechRecognition(didFailWithError error: Error) {
-        logger.error("Speech recognition error: \(error.localizedDescription)")
-        delegate?.callManager(self, didEncounterError: error)
-    }
-    
-    func speechRecognitionDidTimeout() {
-        logger.warning("Speech recognition timeout")
-        delegate?.callManager(self, didEncounterError: AppError.speechRecognitionFailed(underlying: 
-            NSError(domain: "CallManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Recognition timeout"])
-        ))
-    }
-}
 
 // MARK: - Audio Session Notifications
 
@@ -869,6 +951,237 @@ extension CallManager {
     #endif
 }
 
+// MARK: - AudioCaptureDelegate Implementation
+
+extension CallManager: AudioCaptureDelegate {
+    func audioCaptureDidStart() {
+        logger.info("Audio capture started - beginning speech recognition data accumulation")
+    }
+    
+    func audioCaptureDidStop() {
+        logger.info("Audio capture stopped - will process accumulated speech data")
+        
+        // 録音停止時にSTT処理を実行
+        Task {
+            await processRecordedAudio()
+        }
+    }
+    
+    /// 録音された音声データを処理
+    private func processRecordedAudio() async {
+        logger.info("Starting speech recognition processing of recorded audio")
+        
+        do {
+            // SpeechRecognitionServiceで最終的な音声認識結果を取得
+            let result = try await speechRecognitionService.getFinalRecognitionResult()
+            logger.info("Speech recognition successful: \(result.text.prefix(50))...")
+            
+            // 結果をデリゲートメソッドに渡して処理（重複防止済み）
+            await handleSpeechRecognitionResult(result)
+            
+        } catch {
+            logger.error("Speech recognition processing failed: \(error.localizedDescription)")
+            
+            // エラーの場合もフォールバック結果を作成
+            let fallbackResult = SpeechRecognitionResult(
+                text: "音声認識に失敗しました",
+                confidence: 0.0,
+                method: .azureSpeech,
+                language: "ja-JP",
+                processingTime: 0,
+                segments: []
+            )
+            
+            await handleSpeechRecognitionResult(fallbackResult)
+        }
+    }
+    
+    func audioCapture(didReceiveBuffer buffer: AVAudioPCMBuffer) {
+        // 音声バッファをSpeechRecognitionServiceに送信して蓄積
+        speechRecognitionService.accumulateAudioData(buffer)
+    }
+    
+    func audioCapture(didUpdateLevel level: Float) {
+        // 音声レベルの更新（必要に応じて）
+    }
+    
+    func audioCapture(didEncounterError error: Error) {
+        logger.error("Audio capture error: \(error.localizedDescription)")
+    }
+}
+
+// MARK: - SpeechRecognitionDelegate Implementation
+
+extension CallManager: SpeechRecognitionDelegate {
+    func speechRecognition(didRecognizeText text: String, isFinal: Bool) {
+        // リアルタイム認識は無効化しているため、何もしない
+        logger.info("Speech recognition text received (ignored): \(text.prefix(50))...")
+    }
+    
+    func speechRecognition(didCompleteWithResult result: SpeechRecognitionResult) {
+        logger.info("Speech recognition completed: \(result.text.prefix(50))...")
+        // 完了した音声認識結果を処理（重複防止済み）
+        Task {
+            await handleSpeechRecognitionResult(result)
+        }
+    }
+    
+    func speechRecognition(didFailWithError error: Error) {
+        logger.error("Speech recognition failed: \(error.localizedDescription)")
+    }
+    
+    func speechRecognitionDidTimeout() {
+        logger.warning("Speech recognition timed out")
+    }
+    
+    /// 音声認識結果を処理 - SwiftUI安全版（重複防止）
+    private func handleSpeechRecognitionResult(_ result: SpeechRecognitionResult) async {
+        // 重複処理を防ぐためのチェック
+        return await withCheckedContinuation { continuation in
+            processingQueue.async {
+                guard !self.isProcessingResult else {
+                    self.logger.warning("Speech recognition result processing already in progress, skipping...")
+                    continuation.resume()
+                    return
+                }
+                
+                self.isProcessingResult = true
+                self.logger.info("🔄 Processing speech recognition result (length: \(result.text.count))")
+                
+                Task {
+                    await self.performSpeechProcessing(result)
+                    
+                    self.processingQueue.async {
+                        self.isProcessingResult = false
+                        continuation.resume()
+                    }
+                }
+            }
+        }
+    }
+    
+    /// 実際の音声処理を実行
+    private func performSpeechProcessing(_ result: SpeechRecognitionResult) async {
+        do {
+            // 1. AI要約を実行 - エラーハンドリング強化
+            logger.info("📝 Starting text summarization for text length: \(result.text.count)")
+            let summary = try await AsyncDebugHelpers.shared.trackAsyncTask(
+                {
+                    try await self.textProcessingService.summarizeText(result.text)
+                },
+                name: "TextSummarization"
+            )
+            
+            // 2. 通話メタデータを作成
+            let metadata = createCallMetadata()
+            
+            // 3. 構造化された通話データを作成
+            let structuredData = try await textProcessingService.structureCallData(result.text, metadata: metadata)
+            
+            // 4. ローカルに保存（オフライン対応）
+            try await saveCallDataLocally(structuredData)
+            
+            // 5. クラウドストレージに保存（利用可能な場合）
+            await saveCallDataToCloud(structuredData)
+            
+            // 6. UIに結果を通知（ポップアップ表示用）
+            await notifyCallProcessingComplete(structuredData, summary: summary)
+            
+            logger.info("Call processing completed successfully")
+            
+        } catch {
+            logger.error("Failed to process call data: \(error.localizedDescription)")
+            
+            // エラーの場合も基本的な保存は実行
+            let fallbackMetadata = createCallMetadata()
+            let fallbackSummary = CallSummary(
+                keyPoints: ["音声認識完了"],
+                summary: "音声認識は完了しましたが、AI処理に失敗しました",
+                duration: 0,
+                participants: ["Unknown"],
+                actionItems: [],
+                tags: [],
+                confidence: result.confidence
+            )
+            
+            let fallbackData = StructuredCallData(
+                timestamp: Date(),
+                duration: 0,
+                participantNumber: currentCall?.phoneNumber ?? "Unknown",
+                audioFileUrl: "",
+                transcriptionText: result.text,
+                summary: fallbackSummary,
+                metadata: fallbackMetadata
+            )
+            
+            do {
+                try await saveCallDataLocally(fallbackData)
+                await notifyCallProcessingComplete(fallbackData, summary: fallbackData.summary)
+            } catch {
+                logger.error("Failed to save fallback data: \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    /// 通話メタデータを作成
+    private func createCallMetadata() -> CallMetadata {
+        let deviceInfo = DeviceInfo(
+            deviceModel: "iOS Simulator",
+            systemVersion: "18.5",
+            appVersion: "1.0.0"
+        )
+        
+        let networkInfo = NetworkInfo(
+            connectionType: .wifi,
+            signalStrength: 100
+        )
+        
+        // 設定から転写方法を取得
+        let selectedTranscriptionMethod = getSelectedTranscriptionMethod()
+        
+        return CallMetadata(
+            callDirection: currentCall?.direction ?? .incoming,
+            audioQuality: .good,
+            transcriptionMethod: selectedTranscriptionMethod,
+            language: "ja-JP",
+            confidence: 0.8,
+            startTime: callStartTime ?? Date(),
+            endTime: Date(),
+            deviceInfo: deviceInfo,
+            networkInfo: networkInfo
+        )
+    }
+    
+    /// 通話データをローカルに保存
+    private func saveCallDataLocally(_ data: StructuredCallData) async throws {
+        logger.info("Saving local data for call ID: \(data.id)")
+        try await offlineDataManager.saveLocalData(data)
+        logger.info("Successfully saved call data locally")
+    }
+    
+    /// 通話データをクラウドに保存
+    private func saveCallDataToCloud(_ data: StructuredCallData) async {
+        do {
+            logger.info("Attempting to save call data to cloud storage")
+            let _ = try await storageService.saveCallData(data)
+            logger.info("Successfully saved call data to cloud")
+        } catch {
+            logger.warning("Failed to save to cloud storage: \(error.localizedDescription)")
+            // クラウド保存に失敗してもエラーにはしない（オフライン対応）
+        }
+    }
+    
+    /// 通話処理完了をUIに通知
+    private func notifyCallProcessingComplete(_ data: StructuredCallData, summary: CallSummary) async {
+        logger.info("Notifying UI of call processing completion")
+        
+        await MainActor.run {
+            // デリゲートに通知（ViewModelが受け取る）
+            delegate?.callManager(didCompleteCallProcessing: data, summary: summary)
+        }
+    }
+}
+
 // MARK: - Supporting Types
 
 /// 通話状態
@@ -898,29 +1211,6 @@ struct CallInfo {
     let isConnected: Bool
 }
 
-/// CallManagerデリゲート
-protocol CallManagerDelegate: AnyObject {
-    /// 通話が開始された
-    func callManager(_ manager: CallManager, didStartCall callId: String)
-    
-    /// 通話が終了された
-    func callManager(_ manager: CallManager, didEndCall callId: String)
-    
-    /// 音声レベルが更新された
-    func callManager(_ manager: CallManager, didUpdateAudioLevel level: Float)
-    
-    /// 音声認識テキストが取得された
-    func callManager(_ manager: CallManager, didRecognizeText text: String, isFinal: Bool)
-    
-    /// 音声認識が完了した
-    func callManager(_ manager: CallManager, didCompleteRecognition result: SpeechRecognitionResult)
-    
-    /// エラーが発生した
-    func callManager(_ manager: CallManager, didEncounterError error: Error)
-    
-    /// テキスト処理が完了した
-    func callManager(_ manager: CallManager, didCompleteTextProcessing data: StructuredCallData)
-}
 
 // MARK: - Debug Support
 

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Azure Storage設定 -->
+	<key>AzureStorageConnectionString</key>
+	<string>DefaultEndpointsProtocol=https;AccountName=YOUR_STORAGE_ACCOUNT_NAME;AccountKey=YOUR_STORAGE_ACCOUNT_KEY;EndpointSuffix=core.windows.net</string>
+	
+	<!-- Azure Speech Services設定 -->
+	<key>AzureSpeechSubscriptionKey</key>
+	<string>YOUR_SPEECH_SUBSCRIPTION_KEY</string>
+	<key>AzureSpeechRegion</key>
+	<string>YOUR_SPEECH_REGION</string>
+	
+	<!-- Azure OpenAI設定 -->
+	<key>AzureOpenAIAPIKey</key>
+	<string>YOUR_OPENAI_API_KEY</string>
+	<key>AzureOpenAIEndpoint</key>
+	<string>https://YOUR_OPENAI_RESOURCE_NAME.openai.azure.com/</string>
+	<key>AzureOpenAIDeploymentName</key>
+	<string>YOUR_DEPLOYMENT_NAME</string>
+</dict>
+</plist>

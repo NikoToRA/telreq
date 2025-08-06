@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Azure OpenAI詳細設定 -->
+	<key>APIKey</key>
+	<string>YOUR_OPENAI_API_KEY</string>
+	<key>Endpoint</key>
+	<string>https://YOUR_OPENAI_RESOURCE_NAME.openai.azure.com/</string>
+	<key>DeploymentName</key>
+	<string>YOUR_DEPLOYMENT_NAME</string>
+	<key>APIVersion</key>
+	<string>2023-05-15</string>
+	<key>MaxTokens</key>
+	<integer>500</integer>
+	<key>Temperature</key>
+	<real>0.3</real>
+</dict>
+</plist>

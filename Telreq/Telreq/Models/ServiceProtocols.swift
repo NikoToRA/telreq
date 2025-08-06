@@ -395,6 +395,7 @@ enum AppError: LocalizedError {
     case sharingRequestFailed(reason: String)
     case encryptionFailed
     case networkUnavailable
+    case networkTimeout
     case invalidConfiguration
     case userNotFound
     case callRecordNotFound
@@ -403,7 +404,7 @@ enum AppError: LocalizedError {
         switch self {
         case .audioPermissionDenied:
             return "マイクアクセスが拒否されました。設定でアクセスを許可してください。"
-        case .speechRecognitionFailed(let _):
+        case .speechRecognitionFailed:
             return "音声認識に失敗しました"
         case .speechRecognitionUnavailable:
             return "音声認識機能が利用できません。"
@@ -411,12 +412,14 @@ enum AppError: LocalizedError {
             return "ストレージへの接続に失敗しました。"
         case .storageQuotaExceeded:
             return "ストレージ容量の上限に達しています。"
-        case .sharingRequestFailed(let _):
+        case .sharingRequestFailed:
             return "共有リクエストに失敗しました"
         case .encryptionFailed:
             return "データの暗号化に失敗しました。"
         case .networkUnavailable:
             return "ネットワーク接続がありません。"
+        case .networkTimeout:
+            return "処理がタイムアウトしました。"
         case .invalidConfiguration:
             return "設定が無効です。"
         case .userNotFound:
@@ -425,6 +428,16 @@ enum AppError: LocalizedError {
             return "通話記録が見つかりません。"
         }
     }
+}
+
+// MARK: - Call Manager Protocol
+
+/// 通話管理デリゲート
+protocol CallManagerDelegate: AnyObject {
+    func callManager(didStartCall callInfo: CallInfo)
+    func callManager(didEndCall callInfo: CallInfo)
+    func callManager(didCompleteCallProcessing data: StructuredCallData, summary: CallSummary)
+    func callManager(didFailWithError error: Error)
 }
 
 // MARK: - Azure Service Configurations
@@ -462,4 +475,5 @@ protocol CallManagerProtocol: AnyObject {
     func startCallRecording() async throws
     func stopCallRecording() async throws -> SpeechRecognitionResult
 }
+
 
