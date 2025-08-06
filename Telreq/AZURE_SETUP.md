@@ -33,10 +33,10 @@
 開発環境で以下の環境変数を設定してください：
 
 ```bash
-export AZURE_STORAGE_CONNECTION_STRING="DefaultEndpointsProtocol=https;AccountName=youraccount;AccountKey=yourkey;EndpointSuffix=core.windows.net"
-export AZURE_SPEECH_SUBSCRIPTION_KEY="your-speech-subscription-key"
-export AZURE_OPENAI_API_KEY="your-openai-api-key"
-export AZURE_OPENAI_ENDPOINT="https://your-resource.openai.azure.com/"
+export AZURE_STORAGE_CONNECTION_STRING="DefaultEndpointsProtocol=https;AccountName=your-account;AccountKey=YOUR_STORAGE_KEY;EndpointSuffix=core.windows.net"
+export AZURE_SPEECH_SUBSCRIPTION_KEY="YOUR_SPEECH_SUBSCRIPTION_KEY"
+export AZURE_OPENAI_API_KEY="YOUR_OPENAI_API_KEY"
+export AZURE_OPENAI_ENDPOINT="https://your-endpoint.openai.azure.com/"
 ```
 
 ## Xcodeでの設定

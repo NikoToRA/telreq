@@ -74,7 +74,43 @@
             ReferencedContainer = "container:Telreq.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
+      <CommandLineArguments>
+         <CommandLineArgument
+            argument = ""
+            isEnabled = "YES">
+         </CommandLineArgument>
+      </CommandLineArguments>
       <EnvironmentVariables>
+         <EnvironmentVariable
+            key = "AZURE_STORAGE_CONNECTION_STRING"
+            value = "DefaultEndpointsProtocol=https;AccountName=your-account;AccountKey=YOUR_STORAGE_KEY;EndpointSuffix=core.windows.net"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "AZURE_SPEECH_SUBSCRIPTION_KEY"
+            value = "YOUR_SPEECH_SUBSCRIPTION_KEY"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "AZURE_OPENAI_API_KEY"
+            value = "YOUR_OPENAI_API_KEY"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "AZURE_OPENAI_ENDPOINT"
+            value = "https://telreq.openai.azure.com/"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "AZURE_SPEECH_REGION"
+            value = "japaneast"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "AZURE_OPENAI_DEPLOYMENT_NAME"
+            value = "gpt-4o-mini"
+            isEnabled = "YES">
+         </EnvironmentVariable>
       </EnvironmentVariables>
    </LaunchAction>
    <ProfileAction

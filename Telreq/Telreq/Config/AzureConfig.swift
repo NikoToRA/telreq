@@ -10,10 +10,18 @@ struct AzureConfig {
     
     /// 環境変数からAzure設定を取得
     static func loadFromEnvironment() -> AzureKeys {
+        let logger = Logger(subsystem: "com.telreq.app", category: "AzureConfig")
+        
         let storageConnectionString = ProcessInfo.processInfo.environment["AZURE_STORAGE_CONNECTION_STRING"]
         let speechSubscriptionKey = ProcessInfo.processInfo.environment["AZURE_SPEECH_SUBSCRIPTION_KEY"]
         let openAIAPIKey = ProcessInfo.processInfo.environment["AZURE_OPENAI_API_KEY"]
         let openAIEndpoint = ProcessInfo.processInfo.environment["AZURE_OPENAI_ENDPOINT"]
+        
+        logger.info("Loading Azure configuration from environment variables...")
+        logger.info("- Storage: \(storageConnectionString != nil ? "Found" : "Not found")")
+        logger.info("- Speech: \(speechSubscriptionKey != nil ? "Found" : "Not found")")
+        logger.info("- OpenAI API: \(openAIAPIKey != nil ? "Found" : "Not found")")
+        logger.info("- OpenAI Endpoint: \(openAIEndpoint != nil ? "Found" : "Not found")")
         
         return AzureKeys(
             storageConnectionString: storageConnectionString ?? getDefaultStorageConnectionString(),
@@ -28,7 +36,7 @@ struct AzureConfig {
     /// デフォルトのストレージ接続文字列
     private static func getDefaultStorageConnectionString() -> String {
         #if DEBUG
-        return "DefaultEndpointsProtocol=https;AccountName=telreqstorage;AccountKey=your-storage-account-key;EndpointSuffix=core.windows.net"
+        return "DefaultEndpointsProtocol=https;AccountName=your-account;AccountKey=YOUR_STORAGE_KEY;EndpointSuffix=core.windows.net"
         #else
         return ""
         #endif
@@ -37,7 +45,7 @@ struct AzureConfig {
     /// デフォルトのSpeech Subscription Key
     private static func getDefaultSpeechSubscriptionKey() -> String {
         #if DEBUG
-        return "your-speech-subscription-key"
+        return "YOUR_SPEECH_SUBSCRIPTION_KEY"
         #else
         return ""
         #endif
@@ -46,7 +54,7 @@ struct AzureConfig {
     /// デフォルトのOpenAI API Key
     private static func getDefaultOpenAIAPIKey() -> String {
         #if DEBUG
-        return "your-openai-api-key"
+        return "YOUR_OPENAI_API_KEY"
         #else
         return ""
         #endif
@@ -55,7 +63,7 @@ struct AzureConfig {
     /// デフォルトのOpenAI Endpoint
     private static func getDefaultOpenAIEndpoint() -> String {
         #if DEBUG
-        return "https://telreq-openai.openai.azure.com/"
+        return "https://telreq.openai.azure.com/"
         #else
         return ""
         #endif

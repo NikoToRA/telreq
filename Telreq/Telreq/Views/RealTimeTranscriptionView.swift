@@ -37,7 +37,7 @@ struct RealTimeTranscriptionView: View {
                     .padding(.bottom, 16)
             }
             .navigationTitle("リアルタイム転写")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
                     Button(action: {
@@ -264,14 +264,14 @@ struct RealTimeTranscriptionView: View {
                     }
                 }) {
                     ZStack {
-                        Circle()
+                        RoundedRectangle(cornerRadius: 20)
                             .fill(buttonBackgroundColor)
-                            .frame(width: 80, height: 80)
-                            .scaleEffect(viewModel.isTranscribing ? 1.1 : 1.0)
+                            .frame(width: 120, height: 120)
+                            .scaleEffect(viewModel.isTranscribing ? 1.05 : 1.0)
                             .animation(.easeInOut(duration: 0.2), value: viewModel.isTranscribing)
                         
                         Image(systemName: buttonIcon)
-                            .font(.system(size: 32, weight: .medium))
+                            .font(.system(size: 40, weight: .medium))
                             .foregroundColor(.white)
                     }
                 }

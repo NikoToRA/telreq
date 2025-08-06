@@ -31,20 +31,30 @@ final class ServiceContainer: ObservableObject {
     }()
     
     private lazy var azureSpeechConfig: AzureSpeechConfig = {
-        AzureSpeechConfig(
+        // リージョンは環境変数から取得するか、デフォルト値を使用
+        let region = ProcessInfo.processInfo.environment["AZURE_SPEECH_REGION"] ?? "japaneast"
+        
+        logger.info("Speech Configuration - Region: \(region)")
+        
+        return AzureSpeechConfig(
             subscriptionKey: azureKeys.speechSubscriptionKey,
-            region: "japaneast" // 例: リージョン
+            region: region
         )
     }()
     
     private lazy var azureOpenAIConfig: AzureOpenAIConfig = {
-        let endpointString = ProcessInfo.processInfo.environment["AZURE_OPENAI_ENDPOINT"]
-        let endpoint = URL(string: endpointString ?? "https://telreq-openai.openai.azure.com/") ?? URL(string: "https://telreq-openai.openai.azure.com/")!
+        let endpointString = azureKeys.openAIEndpoint
+        let endpoint = URL(string: endpointString) ?? URL(string: "https://telreq.openai.azure.com/")!
+        
+        // デプロイメント名は環境変数から取得するか、デフォルト値を使用
+        let deploymentName = ProcessInfo.processInfo.environment["AZURE_OPENAI_DEPLOYMENT_NAME"] ?? "gpt-35-turbo"
+        
+        logger.info("OpenAI Configuration - Endpoint: \(endpoint), Deployment: \(deploymentName)")
         
         return AzureOpenAIConfig(
             endpoint: endpoint,
             apiKey: azureKeys.openAIAPIKey,
-            deploymentName: "gpt-4o" // 実際のデプロイメント名に変更してください
+            deploymentName: deploymentName
         )
     }()
 
@@ -78,26 +88,26 @@ final class ServiceContainer: ObservableObject {
     }()
     
     /// 音声認識サービス
-    lazy var speechRecognitionService: SpeechRecognitionServiceProtocol = {
-        return SpeechRecognitionService(
-            azureConfig: azureSpeechConfig
-        )
+    lazy var speechRecognitionService: SpeechRecognitionService = {
+        return SpeechRecognitionService(azureConfig: azureSpeechConfig)
     }()
     
-    /// 音声キャプチャサービス
-    lazy var audioCaptureService: AudioCaptureServiceProtocol = {
-        return AudioCaptureService()
-    }()
+    /// 音声キャプチャサービス（具象型で保持）
+    private let _audioCaptureService = AudioCaptureService()
+    var audioCaptureService: AudioCaptureService {
+        return _audioCaptureService
+    }
     
     /// 通話管理サービス
     lazy var callManager: CallManagerProtocol = {
-        return CallManager(
+        let manager = CallManager(
             audioCaptureService: self.audioCaptureService,
             speechRecognitionService: self.speechRecognitionService,
             textProcessingService: self.textProcessingService,
             storageService: self.azureStorageService,
             offlineDataManager: self.offlineDataManager
         )
+        return manager
     }()
     
     /// 共有サービス
@@ -143,9 +153,13 @@ final class ServiceContainer: ObservableObject {
         }
         
         do {
-            // Azure Storage の初期化
-            try await azureStorageService.initializeStorage()
-            logger.info("Azure Storage initialized successfully")
+            // Azure Storage の初期化（失敗してもローカル処理で続行）
+            do {
+                try await azureStorageService.initializeStorage()
+                logger.info("Azure Storage initialized successfully")
+            } catch {
+                logger.warning("Azure Storage initialization failed, continuing with local storage: \(error.localizedDescription)")
+            }
             
             // 音声認識サービスの権限確認
             let speechPermission = await speechRecognitionService.checkSpeechRecognitionPermission()
@@ -166,7 +180,70 @@ final class ServiceContainer: ObservableObject {
             logger.info("All services initialized successfully")
         } catch {
             logger.error("Failed to initialize services: \(error.localizedDescription)")
-            throw error
+            // 重要: 権限系のエラー以外は続行
+            let hasPermission = await speechRecognitionService.checkSpeechRecognitionPermission()
+            if !hasPermission {
+                throw error // 音声認識権限がない場合のみエラーとして扱う
+            }
+        }
+    }
+    
+    /// 権限処理を考慮したサービス初期化
+    func initializeServicesWithPermissionHandling() async throws {
+        logger.info("Initializing services with permission handling")
+        
+        // Azure設定の検証（デバッグモードでは緩く）
+        #if DEBUG
+        if !AzureConfig.validateConfiguration(azureKeys) {
+            logger.warning("Azure configuration may be incomplete in debug mode, continuing")
+        }
+        #else
+        guard AzureConfig.validateConfiguration(azureKeys) else {
+            logger.error("Azure configuration is invalid")
+            throw AppError.invalidConfiguration
+        }
+        #endif
+        
+        var initializationErrors: [Error] = []
+        
+        // Azure Storage の初期化（失敗してもローカル処理で続行）
+        do {
+            try await azureStorageService.initializeStorage()
+            logger.info("Azure Storage initialized successfully")
+        } catch {
+            logger.warning("Azure Storage initialization failed, continuing with local storage: \(error.localizedDescription)")
+            initializationErrors.append(error)
+        }
+        
+        // 音声認識サービスの権限確認
+        let speechPermission = await speechRecognitionService.checkSpeechRecognitionPermission()
+        if !speechPermission {
+            logger.warning("Speech recognition permission not granted - limited functionality")
+            initializationErrors.append(AppError.speechRecognitionUnavailable)
+        } else {
+            logger.info("Speech recognition permission granted")
+        }
+        
+        // 音声キャプチャサービスの初期化
+        let audioPermission = await audioCaptureService.requestMicrophonePermission()
+        if !audioPermission {
+            logger.warning("Microphone permission not granted - recording unavailable")
+            initializationErrors.append(AppError.audioPermissionDenied)
+        } else {
+            logger.info("Microphone permission granted")
+        }
+        
+        // すべての権限が拒否された場合のみエラー
+        if !speechPermission && !audioPermission {
+            logger.error("Critical permissions denied - app cannot function")
+            throw AppError.speechRecognitionUnavailable
+        }
+        
+        logger.info("Services initialized with \(initializationErrors.count) warnings")
+        
+        // 警告レベルのエラーをログ出力
+        for error in initializationErrors {
+            logger.warning("Initialization warning: \(error.localizedDescription)")
         }
     }
     

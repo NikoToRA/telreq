@@ -154,28 +154,42 @@ final class AzureStorageService: NSObject, StorageServiceProtocol {
     }
     
     private func parseConnectionString(_ connectionString: String) -> (accountName: String, accountKey: String)? {
+        logger.info("Parsing connection string: \(connectionString)")
         let components = connectionString.components(separatedBy: ";")
+        logger.info("Split into \(components.count) components: \(components)")
         var accountName: String?
         var accountKey: String?
         
         for component in components {
-            let keyValue = component.components(separatedBy: "=")
-            if keyValue.count == 2 {
-                let key = keyValue[0].trimmingCharacters(in: .whitespaces)
-                let value = keyValue[1].trimmingCharacters(in: .whitespaces)
+            let trimmedComponent = component.trimmingCharacters(in: .whitespaces)
+            if trimmedComponent.isEmpty { continue }
+            
+            // Find the first = to split key and value properly
+            if let firstEqualIndex = trimmedComponent.firstIndex(of: "=") {
+                let key = String(trimmedComponent[..<firstEqualIndex]).trimmingCharacters(in: .whitespaces)
+                let valueStartIndex = trimmedComponent.index(after: firstEqualIndex)
+                let value = String(trimmedComponent[valueStartIndex...]).trimmingCharacters(in: .whitespaces)
+                
+                logger.info("Processing component: '\(trimmedComponent)' -> key: '\(key)', value: '\(value.prefix(10))...'")
                 
                 switch key {
                 case "AccountName":
                     accountName = value
+                    logger.info("Found AccountName: \(value)")
                 case "AccountKey":
                     accountKey = value
+                    logger.info("Found AccountKey: \(value.prefix(10))...")
                 default:
+                    logger.info("Ignoring key: \(key)")
                     break
                 }
             }
         }
         
+        logger.info("Final result - AccountName: \(accountName ?? "nil"), AccountKey: \(accountKey != nil ? "found" : "nil")")
+        
         guard let name = accountName, let key = accountKey else {
+            logger.error("Failed to parse connection string - missing AccountName or AccountKey")
             return nil
         }
         
@@ -184,22 +198,52 @@ final class AzureStorageService: NSObject, StorageServiceProtocol {
     
     private func checkContainerExists() async throws -> Bool {
         guard let connectionString = parseConnectionString(config.connectionString) else {
+            logger.error("Failed to parse connection string: \(self.config.connectionString)")
             throw AppError.invalidConfiguration
         }
+        
+        logger.info("Parsed connection string - Account: \(connectionString.accountName)")
         
         let baseURL = "https://\(connectionString.accountName).blob.core.windows.net"
         let containerURL = "\(baseURL)/\(config.containerName)?restype=container"
         
         guard let url = URL(string: containerURL) else {
+            logger.error("Failed to create URL: \(containerURL)")
             throw AppError.invalidConfiguration
         }
         
         var request = URLRequest(url: url)
         request.httpMethod = "HEAD"
         
+        // Azure Storage 認証ヘッダーを追加
+        do {
+            // 日付ヘッダーを設定
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss 'GMT'"
+            dateFormatter.timeZone = TimeZone(abbreviation: "GMT")
+            dateFormatter.locale = Locale(identifier: "en_US_POSIX")
+            let date = dateFormatter.string(from: Date())
+            
+            request.setValue(date, forHTTPHeaderField: "x-ms-date")
+            request.setValue("2020-04-08", forHTTPHeaderField: "x-ms-version")
+            
+            let authHeader = try generateAuthHeader(
+                method: "HEAD",
+                url: url,
+                accountKey: connectionString.accountKey,
+                contentType: "",
+                contentLength: 0
+            )
+            request.setValue(authHeader, forHTTPHeaderField: "Authorization")
+        } catch {
+            logger.error("Failed to generate auth header: \(error.localizedDescription)")
+            throw AppError.invalidConfiguration
+        }
+        
         let (_, response) = try await session.data(for: request)
         
         if let httpResponse = response as? HTTPURLResponse {
+            logger.info("Container check response: \(httpResponse.statusCode)")
             return httpResponse.statusCode == 200
         }
         
@@ -222,9 +266,30 @@ final class AzureStorageService: NSObject, StorageServiceProtocol {
         request.httpMethod = "PUT"
         request.setValue("application/xml", forHTTPHeaderField: "Content-Type")
         
+        // 日付ヘッダーを設定
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss 'GMT'"
+        dateFormatter.timeZone = TimeZone(abbreviation: "GMT")
+        dateFormatter.locale = Locale(identifier: "en_US_POSIX")
+        let date = dateFormatter.string(from: Date())
+        
+        request.setValue(date, forHTTPHeaderField: "x-ms-date")
+        request.setValue("2020-04-08", forHTTPHeaderField: "x-ms-version")
+        
+        // Azure Storage 認証ヘッダーを追加
+        let authHeader = try self.generateAuthHeader(
+            method: "PUT",
+            url: url,
+            accountKey: connectionString.accountKey,
+            contentType: "application/xml",
+            contentLength: 0
+        )
+        request.setValue(authHeader, forHTTPHeaderField: "Authorization")
+        
         let (_, response) = try await session.data(for: request)
         
         if let httpResponse = response as? HTTPURLResponse {
+            logger.info("Create container response: \(httpResponse.statusCode)")
             if httpResponse.statusCode != 201 && httpResponse.statusCode != 409 {
                 throw AppError.storageConnectionFailed
             }
@@ -243,8 +308,18 @@ final class AzureStorageService: NSObject, StorageServiceProtocol {
         request.setValue("\(data.count)", forHTTPHeaderField: "Content-Length")
         request.setValue("BlockBlob", forHTTPHeaderField: "x-ms-blob-type")
         
+        // 日付ヘッダーを設定
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss 'GMT'"
+        dateFormatter.timeZone = TimeZone(abbreviation: "GMT")
+        dateFormatter.locale = Locale(identifier: "en_US_POSIX")
+        let date = dateFormatter.string(from: Date())
+        
+        request.setValue(date, forHTTPHeaderField: "x-ms-date")
+        request.setValue("2020-04-08", forHTTPHeaderField: "x-ms-version")
+        
         // Azure Storage 認証ヘッダーを追加
-        let authHeader = try generateAuthHeader(
+        let authHeader = try self.generateAuthHeader(
             method: "PUT",
             url: url,
             accountKey: connectionString.accountKey,
@@ -264,29 +339,50 @@ final class AzureStorageService: NSObject, StorageServiceProtocol {
     
     private func generateAuthHeader(method: String, url: URL, accountKey: String, contentType: String, contentLength: Int) throws -> String {
         // Azure Storage の Shared Key 認証を実装
-        let date = ISO8601DateFormatter().string(from: Date())
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss 'GMT'"
+        dateFormatter.timeZone = TimeZone(abbreviation: "GMT")
+        dateFormatter.locale = Locale(identifier: "en_US_POSIX")
+        let date = dateFormatter.string(from: Date())
+        
+        // アカウント名を取得
+        guard let hostComponents = url.host?.components(separatedBy: "."),
+              let accountName = hostComponents.first else {
+            throw AppError.invalidConfiguration
+        }
         
         // Canonicalized Headers
         let canonicalizedHeaders = [
-            "x-ms-blob-type:BlockBlob",
             "x-ms-date:\(date)",
             "x-ms-version:2020-04-08"
         ].joined(separator: "\n")
         
         // Canonicalized Resource
         let path = url.path
-        let query = url.query ?? ""
-        let canonicalizedResource = "/\(url.host?.components(separatedBy: ".").first ?? "")\(path)?\(query)"
+        var canonicalizedResource = "/\(accountName)\(path)"
+        if let query = url.query, !query.isEmpty {
+            let queryParams = query.components(separatedBy: "&")
+                .compactMap { param -> (String, String)? in
+                    let keyValue = param.components(separatedBy: "=")
+                    guard keyValue.count == 2 else { return nil }
+                    return (keyValue[0], keyValue[1])
+                }
+                .sorted { $0.0 < $1.0 }
+            
+            for (key, value) in queryParams {
+                canonicalizedResource += "\n\(key):\(value)"
+            }
+        }
         
         // String to Sign
         let stringToSign = [
             method,
             "", // Content-Encoding
             "", // Content-Language
-            "\(contentLength)", // Content-Length
+            contentLength > 0 ? "\(contentLength)" : "", // Content-Length
             "", // Content-MD5
             contentType,
-            "", // Date
+            "", // Date (empty when using x-ms-date)
             "", // If-Modified-Since
             "", // If-Match
             "", // If-None-Match
@@ -296,15 +392,18 @@ final class AzureStorageService: NSObject, StorageServiceProtocol {
             canonicalizedResource
         ].joined(separator: "\n")
         
+        logger.info("String to sign: \(stringToSign)")
+        
         // HMAC-SHA256 で署名を生成
         guard let keyData = Data(base64Encoded: accountKey),
               let stringData = stringToSign.data(using: .utf8) else {
+            logger.error("Failed to create signature data")
             throw AppError.encryptionFailed
         }
         
         let signature = hmacSHA256(data: stringData, key: keyData)
         
-        return "SharedKey \(url.host?.components(separatedBy: ".").first ?? ""):\(signature)"
+        return "SharedKey \(accountName):\(signature)"
     }
     
     private func hmacSHA256(data: Data, key: Data) -> String {

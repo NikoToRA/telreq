@@ -1,6 +1,40 @@
 import SwiftUI
 import os.log
 
+/// 要約モード
+enum SummaryMode: String, CaseIterable {
+    case ruleBasedOnly = "rule_based_only"
+    case aiOnly = "ai_only"
+    case ruleBasedPrimary = "rule_based_primary"
+    case aiPrimary = "ai_primary"
+    
+    var displayName: String {
+        switch self {
+        case .ruleBasedOnly:
+            return "ルールベースのみ"
+        case .aiOnly:
+            return "AI要約のみ"
+        case .ruleBasedPrimary:
+            return "ルールベース優先"
+        case .aiPrimary:
+            return "AI要約優先"
+        }
+    }
+    
+    var description: String {
+        switch self {
+        case .ruleBasedOnly:
+            return "高速で安定、オフライン対応"
+        case .aiOnly:
+            return "高品質だが通信必要"
+        case .ruleBasedPrimary:
+            return "ルールベース主体、AI併用"
+        case .aiPrimary:
+            return "AI主体、ルールベース併用"
+        }
+    }
+}
+
 /// 設定ビュー
 /// 
 /// 転写方法選択、自動起動設定、プライバシー設定、Azure接続設定を提供します。
@@ -23,6 +57,9 @@ struct SettingsView: View {
             Form {
                 // 転写設定セクション
                 transcriptionSettingsSection
+                
+                // 要約設定セクション
+                summarySettingsSection
                 
                 // 音声設定セクション
                 audioSettingsSection
@@ -147,6 +184,97 @@ struct SettingsView: View {
                         await viewModel.updateAutoGenerateSummary(newValue)
                     }
                 }
+        }
+    }
+    
+    /// 要約設定セクション
+    private var summarySettingsSection: some View {
+        Section("要約設定") {
+            // 要約モード選択
+            Picker("要約モード", selection: $viewModel.summaryMode) {
+                ForEach(SummaryMode.allCases, id: \.self) { mode in
+                    VStack(alignment: .leading) {
+                        Text(mode.displayName).tag(mode)
+                        Text(mode.description)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            .onChange(of: viewModel.summaryMode) { oldValue, newValue in
+                Task {
+                    await viewModel.updateSummaryMode(newValue)
+                }
+            }
+            
+            // AI要約を有効にする
+            if viewModel.summaryMode == .aiOnly || viewModel.summaryMode == .aiPrimary {
+                Toggle("AI要約を有効にする", isOn: $viewModel.aiSummaryEnabled)
+                    .onChange(of: viewModel.aiSummaryEnabled) { oldValue, newValue in
+                        Task {
+                            await viewModel.updateAISummaryEnabled(newValue)
+                        }
+                    }
+                
+                // AI要約の品質閾値
+                VStack(alignment: .leading) {
+                    HStack {
+                        Text("AI要約品質閾値")
+                        Spacer()
+                        Text("\(Int(viewModel.summaryQualityThreshold * 100))%")
+                            .foregroundColor(.secondary)
+                    }
+                    Slider(value: $viewModel.summaryQualityThreshold, in: 0.3...1.0, step: 0.1)
+                        .onChange(of: viewModel.summaryQualityThreshold) { oldValue, newValue in
+                            Task {
+                                await viewModel.updateSummaryQualityThreshold(newValue)
+                            }
+                        }
+                    Text("閾値が高いとAI要約を使用、低いとルールベース要約を使用")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            // 最大要約文字数
+            VStack(alignment: .leading) {
+                HStack {
+                    Text("最大要約文字数")
+                    Spacer()
+                    Text("\(viewModel.maxSummaryLength)文字")
+                        .foregroundColor(.secondary)
+                }
+                Slider(value: .init(
+                    get: { Double(viewModel.maxSummaryLength) },
+                    set: { viewModel.maxSummaryLength = Int($0) }
+                ), in: 50...500, step: 50)
+                .onChange(of: viewModel.maxSummaryLength) { oldValue, newValue in
+                    Task {
+                        await viewModel.updateMaxSummaryLength(newValue)
+                    }
+                }
+            }
+            
+            // キーワード抽出を含める
+            Toggle("キーワード抽出を含める", isOn: $viewModel.includeKeywords)
+                .onChange(of: viewModel.includeKeywords) { oldValue, newValue in
+                    Task {
+                        await viewModel.updateIncludeKeywords(newValue)
+                    }
+                }
+            
+            // アクションアイテム抽出を含める
+            Toggle("アクションアイテム抽出を含める", isOn: $viewModel.includeActionItems)
+                .onChange(of: viewModel.includeActionItems) { oldValue, newValue in
+                    Task {
+                        await viewModel.updateIncludeActionItems(newValue)
+                    }
+                }
+            
+            // プロンプトカスタマイズ機能
+            NavigationLink("📝 プロンプトをカスタマイズ") {
+                CustomPromptSettingsView(viewModel: viewModel)
+            }
         }
     }
     
@@ -915,12 +1043,25 @@ class SettingsViewModel: ObservableObject {
     
     // MARK: - Published Properties
     
-    // 転写設定
+    // 転写設定（iOS優先）
     @Published var selectedTranscriptionMethod: TranscriptionMethod = .iosSpeech
     @Published var autoStartTranscription = true
     @Published var realtimeTranscription = true
     @Published var selectedLanguage = "ja-JP"
     @Published var autoGenerateSummary = true
+    
+    // 要約設定
+    @Published var summaryMode: SummaryMode = .ruleBasedPrimary
+    @Published var aiSummaryEnabled = true
+    @Published var summaryQualityThreshold = 0.7
+    @Published var maxSummaryLength = 200
+    @Published var includeKeywords = true
+    @Published var includeActionItems = true
+    
+    // プロンプトカスタマイズ設定
+    @Published var useCustomPrompt = false
+    @Published var customSummaryPrompt = ""
+    @Published var customSystemPrompt = ""
     
     // 音声設定
     @Published var recordingQuality: RecordingQuality = .standard
@@ -1138,6 +1279,62 @@ class SettingsViewModel: ObservableObject {
         UserDefaults.standard.set(enabled, forKey: "autoGenerateSummary")
     }
     
+    // MARK: - Summary Settings Methods
+    
+    func updateSummaryMode(_ mode: SummaryMode) async {
+        logger.info("Updating summary mode to: \(mode.rawValue)")
+        summaryMode = mode
+        UserDefaults.standard.set(mode.rawValue, forKey: "summaryMode")
+    }
+    
+    func updateAISummaryEnabled(_ enabled: Bool) async {
+        logger.info("Updating AI summary enabled to: \(enabled)")
+        aiSummaryEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: "aiSummaryEnabled")
+    }
+    
+    func updateSummaryQualityThreshold(_ threshold: Double) async {
+        logger.info("Updating summary quality threshold to: \(threshold)")
+        summaryQualityThreshold = threshold
+        UserDefaults.standard.set(threshold, forKey: "summaryQualityThreshold")
+    }
+    
+    func updateMaxSummaryLength(_ length: Int) async {
+        logger.info("Updating max summary length to: \(length)")
+        maxSummaryLength = length
+        UserDefaults.standard.set(length, forKey: "maxSummaryLength")
+    }
+    
+    func updateIncludeKeywords(_ enabled: Bool) async {
+        logger.info("Updating include keywords to: \(enabled)")
+        includeKeywords = enabled
+        UserDefaults.standard.set(enabled, forKey: "includeKeywords")
+    }
+    
+    func updateIncludeActionItems(_ enabled: Bool) async {
+        logger.info("Updating include action items to: \(enabled)")
+        includeActionItems = enabled
+        UserDefaults.standard.set(enabled, forKey: "includeActionItems")
+    }
+    
+    func updateUseCustomPrompt(_ enabled: Bool) async {
+        logger.info("Updating use custom prompt to: \(enabled)")
+        useCustomPrompt = enabled
+        UserDefaults.standard.set(enabled, forKey: "useCustomPrompt")
+    }
+    
+    func updateCustomSystemPrompt(_ prompt: String) async {
+        logger.info("Updating custom system prompt")
+        customSystemPrompt = prompt
+        UserDefaults.standard.set(prompt, forKey: "customSystemPrompt")
+    }
+    
+    func updateCustomSummaryPrompt(_ prompt: String) async {
+        logger.info("Updating custom summary prompt")
+        customSummaryPrompt = prompt
+        UserDefaults.standard.set(prompt, forKey: "customSummaryPrompt")
+    }
+    
     func updateRecordingQuality(_ quality: RecordingQuality) async {
         logger.info("Updating recording quality to: \(quality.rawValue)")
         recordingQuality = quality
@@ -1303,6 +1500,136 @@ class SettingsViewModel: ObservableObject {
 }
 
 // MARK: - Preview
+
+/// カスタムプロンプト設定画面
+@available(iOS 15.0, *)
+struct CustomPromptSettingsView: View {
+    @ObservedObject var viewModel: SettingsViewModel
+    @State private var isEditingPrompt = false
+    
+    var body: some View {
+        Form {
+            Section {
+                Toggle("カスタムプロンプトを使用", isOn: $viewModel.useCustomPrompt)
+                    .onChange(of: viewModel.useCustomPrompt) { oldValue, newValue in
+                        Task {
+                            await viewModel.updateUseCustomPrompt(newValue)
+                        }
+                    }
+                
+                if viewModel.useCustomPrompt {
+                    Text("カスタムプロンプト機能を有効にすると、AI要約時に独自のプロンプトを使用できます")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            } header: {
+                Text("カスタムプロンプト設定")
+            }
+            
+            if viewModel.useCustomPrompt {
+                Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("システムプロンプト")
+                            .font(.headline)
+                        TextEditor(text: $viewModel.customSystemPrompt)
+                            .frame(minHeight: 80)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.gray.opacity(0.3))
+                            )
+                            .onChange(of: viewModel.customSystemPrompt) { oldValue, newValue in
+                                Task {
+                                    await viewModel.updateCustomSystemPrompt(newValue)
+                                }
+                            }
+                        
+                        if viewModel.customSystemPrompt.isEmpty {
+                            Text("例：あなたは医療分野の専門家です。通話内容から重要な医療情報を抽出し、簡潔に要約してください。")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                } header: {
+                    Text("システムプロンプト")
+                } footer: {
+                    Text("AIの役割と振る舞いを定義します")
+                }
+                
+                Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("要約プロンプト")
+                            .font(.headline)
+                        TextEditor(text: $viewModel.customSummaryPrompt)
+                            .frame(minHeight: 100)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.gray.opacity(0.3))
+                            )
+                            .onChange(of: viewModel.customSummaryPrompt) { oldValue, newValue in
+                                Task {
+                                    await viewModel.updateCustomSummaryPrompt(newValue)
+                                }
+                            }
+                        
+                        if viewModel.customSummaryPrompt.isEmpty {
+                            Text("例：以下の通話内容から以下の項目を抽出してください：\n1. 主な症状や問題\n2. 処方薬や治療法\n3. 次回予定や指示事項\n\n通話内容：{text}")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                } header: {
+                    Text("要約プロンプト")
+                } footer: {
+                    Text("具体的な要約指示を記述します。{text}の部分に通話内容が入ります")
+                }
+                
+                Section {
+                    Button("デフォルトプロンプトを復元") {
+                        restoreDefaultPrompts()
+                    }
+                    .foregroundColor(.blue)
+                    
+                    Button("プロンプトをクリア") {
+                        clearPrompts()
+                    }
+                    .foregroundColor(.red)
+                } header: {
+                    Text("プロンプト管理")
+                }
+            }
+        }
+        .navigationTitle("プロンプト設定")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            // デフォルトプロンプトを設定（初回のみ）
+            if viewModel.customSystemPrompt.isEmpty && viewModel.customSummaryPrompt.isEmpty {
+                setDefaultPrompts()
+            }
+        }
+    }
+    
+    private func setDefaultPrompts() {
+        viewModel.customSystemPrompt = "あなたは通話内容の要約を専門とするアシスタントです。簡潔で分かりやすい要約を作成してください。"
+        viewModel.customSummaryPrompt = "以下の通話内容を\(viewModel.maxSummaryLength)文字以内で要約してください。重要なポイント、決定事項、次のアクションを含めてください。\n\n通話内容：{text}\n\n要約:"
+    }
+    
+    private func restoreDefaultPrompts() {
+        setDefaultPrompts()
+        Task {
+            await viewModel.updateCustomSystemPrompt(viewModel.customSystemPrompt)
+            await viewModel.updateCustomSummaryPrompt(viewModel.customSummaryPrompt)
+        }
+    }
+    
+    private func clearPrompts() {
+        viewModel.customSystemPrompt = ""
+        viewModel.customSummaryPrompt = ""
+        Task {
+            await viewModel.updateCustomSystemPrompt("")
+            await viewModel.updateCustomSummaryPrompt("")
+        }
+    }
+}
 
 #Preview {
     SettingsView()

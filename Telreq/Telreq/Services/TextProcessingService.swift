@@ -2,6 +2,24 @@ import Foundation
 import NaturalLanguage
 import os.log
 
+/// 並行処理安全性のためのActor
+actor TextProcessingActor {
+    private var processingCount = 0
+    private let maxConcurrentTasks = 1  // 同時実行を1つに制限
+    
+    func withSafeProcessing<T>(operation: () async throws -> T) async throws -> T {
+        // 既に処理中の場合は待機
+        while processingCount >= maxConcurrentTasks {
+            try await Task.sleep(nanoseconds: 100_000_000) // 100ms待機
+        }
+        
+        processingCount += 1
+        defer { processingCount -= 1 }
+        
+        return try await operation()
+    }
+}
+
 /// テキスト処理サービス
 ///
 /// 通話内容の自動要約生成、キーワード抽出、アクションアイテム識別、
@@ -16,7 +34,7 @@ final class TextProcessingService: TextProcessingServiceProtocol {
     /// 自然言語処理器
     private let languageRecognizer = NLLanguageRecognizer()
     private let tokenizer = NLTokenizer(unit: .word)
-    private let tagger = NLTagger(tagSchemes: [.nameType, .lexicalClass])
+    // 注意: taggerは並行処理で安全ではないため、メソッド内で個別に作成
     
     /// Azure OpenAI Serviceの設定
     private let openAIConfig: AzureOpenAIConfig
@@ -24,11 +42,56 @@ final class TextProcessingService: TextProcessingServiceProtocol {
     /// URLSession for API calls
     private let urlSession: URLSession
     
-    /// 要約品質の閾値
-    private let summaryQualityThreshold: Double = 0.7
+    /// 処理中フラグ（競合状態防止）
+    private let processingActor = TextProcessingActor()
+    
+    /// 要約品質の閾値（設定から取得、デフォルトは0.7）
+    private var summaryQualityThreshold: Double {
+        return UserDefaults.standard.object(forKey: "summaryQualityThreshold") as? Double ?? 0.7
+    }
     
     /// キーワード抽出の最大数
     private let maxKeywords = 20
+    
+    /// 設定から要約モードを取得
+    private var summaryMode: String {
+        return UserDefaults.standard.string(forKey: "summaryMode") ?? "rule_based_primary"
+    }
+    
+    /// 設定からAI要約有効状態を取得
+    private var aiSummaryEnabled: Bool {
+        return UserDefaults.standard.object(forKey: "aiSummaryEnabled") as? Bool ?? true
+    }
+    
+    /// 設定から最大要約文字数を取得
+    private var maxSummaryLength: Int {
+        return UserDefaults.standard.object(forKey: "maxSummaryLength") as? Int ?? 500
+    }
+    
+    /// 設定からキーワード抽出有効状態を取得
+    private var includeKeywords: Bool {
+        return UserDefaults.standard.object(forKey: "includeKeywords") as? Bool ?? true
+    }
+    
+    /// 設定からアクションアイテム抽出有効状態を取得
+    private var includeActionItems: Bool {
+        return UserDefaults.standard.object(forKey: "includeActionItems") as? Bool ?? true
+    }
+    
+    /// 設定からカスタムプロンプト使用状態を取得
+    private var useCustomPrompt: Bool {
+        return UserDefaults.standard.object(forKey: "useCustomPrompt") as? Bool ?? false
+    }
+    
+    /// 設定からカスタムシステムプロンプトを取得
+    private var customSystemPrompt: String {
+        return UserDefaults.standard.string(forKey: "customSystemPrompt") ?? ""
+    }
+    
+    /// 設定からカスタム要約プロンプトを取得
+    private var customSummaryPrompt: String {
+        return UserDefaults.standard.string(forKey: "customSummaryPrompt") ?? ""
+    }
     
     /// アクションアイテム検出のパターン
     private let actionPatterns = [
@@ -67,16 +130,40 @@ final class TextProcessingService: TextProcessingServiceProtocol {
         logger.info("TextProcessingService initialized")
     }
     
+    
     // MARK: - TextProcessingServiceProtocol Implementation
     
     /// テキストを要約
     /// - Parameter text: 要約するテキスト
     /// - Returns: 生成された要約
     func summarizeText(_ text: String) async throws -> CallSummary {
-        logger.info("Starting text summarization for text length: \(text.count)")
+        return try await processingActor.withSafeProcessing {
+            return try await self.performTextSummarization(text)
+        }
+    }
+    
+    /// 実際の要約処理を実行
+    private func performTextSummarization(_ text: String) async throws -> CallSummary {
+        logger.info("🔄 Starting text summarization for text length: \(text.count)")
         
+        // 空のテキストの場合はフォールバック要約を作成
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw AppError.invalidConfiguration // or a more specific error
+            logger.warning("Empty text provided, creating fallback summary")
+            return CallSummary(
+                keyPoints: ["音声データなし"],
+                summary: "音声認識データがありませんでした",
+                duration: 0,
+                participants: ["Unknown"],
+                actionItems: [],
+                tags: ["no-audio"],
+                confidence: 0.0
+            )
+        }
+        
+        // メモリ使用量をチェックし、警告を出力
+        let memoryUsage = AsyncDebugHelpers.shared.getMemoryUsage()
+        if memoryUsage > 200.0 {
+            logger.warning("⚠️ High memory usage before processing: \(String(format: "%.1f", memoryUsage)) MB")
         }
         
         let language = detectLanguage(in: text)
@@ -87,28 +174,115 @@ final class TextProcessingService: TextProcessingServiceProtocol {
         var summaryText: String
         var confidence: Double
         
-        if quality > summaryQualityThreshold {
-            let aiSummary = try await generateAzureOpenAISummary(text, language: language, config: openAIConfig)
-            summaryText = aiSummary.text
-            confidence = aiSummary.confidence
-        } else {
+        // 設定に基づいた要約処理
+        let currentSummaryMode = self.summaryMode
+        let aiEnabled = self.aiSummaryEnabled
+        
+        logger.info("🔍 Summary mode: \(currentSummaryMode), AI enabled: \(aiEnabled), Quality: \(quality), Threshold: \(self.summaryQualityThreshold)")
+        
+        do {
+            switch currentSummaryMode {
+            case "rule_based_only":
+                logger.info("📝 Rule-based only mode")
+                let ruleSummary = generateRuleBasedSummary(text)
+                summaryText = ruleSummary.text
+                confidence = ruleSummary.confidence
+                logger.info("📝 Rule-based summary completed")
+                
+            case "ai_only":
+                if aiEnabled {
+                    logger.info("🤖 AI-only mode")
+                    let aiSummary = try await generateAzureOpenAISummary(text, language: language, config: openAIConfig)
+                    summaryText = aiSummary.text
+                    confidence = aiSummary.confidence
+                    logger.info("✅ AI summary completed")
+                } else {
+                    logger.info("📝 AI disabled, falling back to rule-based")
+                    let ruleSummary = generateRuleBasedSummary(text)
+                    summaryText = ruleSummary.text
+                    confidence = ruleSummary.confidence * 0.8
+                    logger.info("📝 Fallback rule-based summary completed")
+                }
+                
+            case "ai_primary":
+                if aiEnabled {
+                    logger.info("🤖 AI-primary mode")
+                    let aiSummary = try await generateAzureOpenAISummary(text, language: language, config: openAIConfig)
+                    summaryText = aiSummary.text
+                    confidence = aiSummary.confidence
+                    logger.info("✅ AI summary completed")
+                } else {
+                    logger.info("📝 AI disabled, using rule-based")
+                    let ruleSummary = generateRuleBasedSummary(text)
+                    summaryText = ruleSummary.text
+                    confidence = ruleSummary.confidence
+                    logger.info("📝 Rule-based summary completed")
+                }
+                
+            default: // "rule_based_primary"
+                logger.info("📝 Rule-based primary mode, quality check: \(quality) vs \(self.summaryQualityThreshold)")
+                if quality > summaryQualityThreshold && aiEnabled {
+                    logger.info("🤖 High quality + AI enabled, using AI summary")
+                    let aiSummary = try await generateAzureOpenAISummary(text, language: language, config: openAIConfig)
+                    summaryText = aiSummary.text
+                    confidence = aiSummary.confidence
+                    logger.info("✅ AI summary completed")
+                } else {
+                    logger.info("📝 Using rule-based summary (quality: \(quality), AI enabled: \(aiEnabled))")
+                    let ruleSummary = generateRuleBasedSummary(text)
+                    summaryText = ruleSummary.text
+                    confidence = ruleSummary.confidence
+                    logger.info("📝 Rule-based summary completed")
+                }
+            }
+        } catch {
+            // サイレントにフォールバック処理
+            logger.info("🔄 Falling back to rule-based summary")
             let ruleSummary = generateRuleBasedSummary(text)
             summaryText = ruleSummary.text
-            confidence = ruleSummary.confidence
+            confidence = ruleSummary.confidence * 0.7 // 信頼度を下げる
+            logger.info("📝 Fallback rule-based summary completed")
         }
         
-        async let keyPointsTask = extractKeyPoints(from: text)
-        async let keywordsTask = self.extractKeywords(from: text)
-        async let actionItemsTask = self.extractActionItems(from: text)
-        async let participantsTask = self.identifySpeakers(in: text)
+        // 各タスクを設定に応じて安全に実行（エラーハンドリング付き）
+        var keyPoints: [String]
+        var keywords: [String]
+        var actionItems: [String]
+        var participants: [String]
+        
+        let shouldIncludeKeywords = self.includeKeywords
+        let shouldIncludeActionItems = self.includeActionItems
+        
+        logger.info("🔍 Extraction settings - Keywords: \(shouldIncludeKeywords), ActionItems: \(shouldIncludeActionItems)")
+        
+        do {
+            async let keyPointsTask = extractKeyPoints(from: text)
+            async let keywordsTask: [String] = shouldIncludeKeywords ? self.extractKeywords(from: text) : []
+            async let actionItemsTask: [String] = shouldIncludeActionItems ? self.extractActionItems(from: text) : []
+            async let participantsTask = self.identifySpeakers(in: text)
+            
+            keyPoints = await keyPointsTask
+            keywords = shouldIncludeKeywords ? (try await keywordsTask) : []
+            actionItems = shouldIncludeActionItems ? (try await actionItemsTask) : []
+            participants = try await participantsTask
+            
+            logger.info("📊 Extracted - Keywords: \(keywords.count), ActionItems: \(actionItems.count)")
+            
+        } catch {
+            logger.warning("Some extraction tasks failed: \(error.localizedDescription), using fallback values")
+            keyPoints = ["要約処理中にエラーが発生しました"]
+            keywords = []
+            actionItems = []
+            participants = ["Unknown"]
+        }
         
         let summary = CallSummary(
-            keyPoints: await keyPointsTask,
+            keyPoints: keyPoints,
             summary: summaryText,
             duration: estimateTextDuration(text),
-            participants: try await participantsTask,
-            actionItems: try await actionItemsTask,
-            tags: try await keywordsTask,
+            participants: participants,
+            actionItems: actionItems,
+            tags: keywords,
             confidence: confidence
         )
         
@@ -139,10 +313,40 @@ final class TextProcessingService: TextProcessingServiceProtocol {
     func extractKeywords(from text: String) async throws -> [String] {
         logger.info("Extracting keywords from text")
         
-        return await withTaskGroup(of: [String].self) { group in
-            group.addTask { self.extractKeywordsWithTFIDF(text) }
-            group.addTask { self.extractNamedEntities(text) }
-            group.addTask { self.extractImportantPhrases(text) }
+        // 入力テキストの検証
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            logger.warning("extractKeywords: Empty text provided")
+            return []
+        }
+        
+        return await withTaskGroup(of: [String].self, returning: [String].self) { group in
+            // 各タスクでエラーハンドリングを追加
+            group.addTask {
+                do {
+                    return self.extractKeywordsWithTFIDF(text)
+                } catch {
+                    // サイレントにエラー処理
+                    return []
+                }
+            }
+            
+            group.addTask {
+                do {
+                    return self.extractNamedEntities(text)
+                } catch {
+                    // サイレントにエラー処理
+                    return []
+                }
+            }
+            
+            group.addTask {
+                do {
+                    return self.extractImportantPhrases(text)
+                } catch {
+                    // サイレントにエラー処理
+                    return []
+                }
+            }
             
             var allKeywords: Set<String> = []
             for await keywords in group {
@@ -150,6 +354,7 @@ final class TextProcessingService: TextProcessingServiceProtocol {
             }
             
             return Array(allKeywords)
+                .filter { !$0.isEmpty && $0.count >= 2 }
                 .sorted { $0.count > $1.count }
                 .prefix(maxKeywords)
                 .map { $0 }
@@ -233,8 +438,10 @@ final class TextProcessingService: TextProcessingServiceProtocol {
         let sentenceEndCount = cleanText.components(separatedBy: CharacterSet(charactersIn: "。．.！？!?")).count - 1
         let sentenceScore = min(Double(sentenceEndCount) / 10.0, 1.0) * 0.3
         
-        tokenizer.string = cleanText
-        let tokens = tokenizer.tokens(for: cleanText.startIndex..<cleanText.endIndex)
+        // スレッドセーフティのため、メソッド内で新しいtokenizer インスタンスを作成
+        let localTokenizer = NLTokenizer(unit: .word)
+        localTokenizer.string = cleanText
+        let tokens = localTokenizer.tokens(for: cleanText.startIndex..<cleanText.endIndex)
         let uniqueTokens = Set(tokens.map { String(cleanText[$0]) })
         let vocabularyScore = Double(uniqueTokens.count) / Double(max(tokens.count, 1)) * 0.3
         
@@ -258,6 +465,43 @@ final class TextProcessingService: TextProcessingServiceProtocol {
         config: AzureOpenAIConfig
     ) async throws -> SummaryResult {
         
+        // 設定検証を緩和
+        guard !config.apiKey.isEmpty else {
+            logger.warning("⚠️ Azure OpenAI API key is empty, falling back to rule-based")
+            throw AppError.invalidConfiguration
+        }
+        
+        guard !config.deploymentName.isEmpty else {
+            logger.warning("⚠️ Azure OpenAI deployment name is empty, falling back to rule-based")
+            throw AppError.invalidConfiguration
+        }
+        
+        guard config.endpoint.absoluteString.contains("openai.azure.com") else {
+            logger.warning("⚠️ Azure OpenAI endpoint format invalid, falling back to rule-based")
+            throw AppError.invalidConfiguration
+        }
+        
+        logger.info("🔍 Azure OpenAI validation passed - Endpoint: \(config.endpoint), Deployment: \(config.deploymentName)")
+        
+        return try await AsyncDebugHelpers.shared.trackAsyncTask({
+            try await self.performAzureOpenAIRequest(text, language: language, config: config)
+        }, name: "AzureOpenAISummary", timeout: 15.0)
+    }
+    
+    private func performAzureOpenAIRequest(
+        _ text: String,
+        language: String,
+        config: AzureOpenAIConfig
+    ) async throws -> SummaryResult {
+        
+        // メモリ使用量をチェック
+        let memoryUsage = AsyncDebugHelpers.shared.getMemoryUsage()
+        logger.info("📊 Memory usage before API call: \(String(format: "%.1f", memoryUsage)) MB")
+        
+        if memoryUsage > 150 {
+            logger.warning("⚠️ High memory usage detected: \(String(format: "%.1f", memoryUsage)) MB")
+        }
+        
         let prompt = buildSummaryPrompt(text, language: language)
         let systemPrompt = getSystemPrompt(for: language)
         
@@ -269,33 +513,88 @@ final class TextProcessingService: TextProcessingServiceProtocol {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(config.apiKey, forHTTPHeaderField: "api-key")
+        request.timeoutInterval = 10.0 // 10秒タイムアウト
         
         let requestBody: [String: Any] = [
             "messages": [
                 ["role": "system", "content": systemPrompt],
                 ["role": "user", "content": prompt]
             ],
-            "max_tokens": 500,
+            "max_tokens": 300, // トークン数を制限してレスポンス時間を短縮
             "temperature": 0.3,
             "top_p": 0.9
         ]
-        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
         
-        let (data, response) = try await urlSession.data(for: request)
+        let requestData = try JSONSerialization.data(withJSONObject: requestBody)
+        request.httpBody = requestData
         
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw AppError.networkUnavailable
+        logger.info("🌐 Sending Azure OpenAI request - Payload size: \(requestData.count) bytes")
+        
+        // キャンセレーション対応のAPI呼び出し
+        return try await withThrowingTaskGroup(of: SummaryResult.self) { group in
+            // メインAPIリクエスト
+            group.addTask {
+                let (data, response) = try await self.urlSession.data(for: request)
+                
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    throw AppError.networkUnavailable
+                }
+                
+                if httpResponse.statusCode != 200 {
+                    let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+                    self.logger.error("❌ Azure OpenAI API error (\(httpResponse.statusCode)): \(errorMessage)")
+                    throw AppError.networkUnavailable
+                }
+                
+                self.logger.info("📥 Received Azure OpenAI response - Size: \(data.count) bytes")
+                return try self.parseAzureOpenAIResponse(data)
+            }
+            
+            // タイムアウト監視（API呼び出し専用の短いタイムアウト）
+            group.addTask {
+                try await Task.sleep(nanoseconds: 8_000_000_000) // 8秒
+                self.logger.warning("⏰ Azure OpenAI API call timed out")
+                throw AppError.networkUnavailable
+            }
+            
+            // 最初に完了した結果を返す
+            guard let result = try await group.next() else {
+                throw AppError.networkUnavailable
+            }
+            
+            group.cancelAll()
+            return result
         }
+    }
+    
+    private func parseAzureOpenAIResponse(_ data: Data) throws -> SummaryResult {
         
-        if let jsonResponse = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let choices = jsonResponse["choices"] as? [[String: Any]],
-           let firstChoice = choices.first,
-           let message = firstChoice["message"] as? [String: Any],
-           let content = message["content"] as? String {
-            return SummaryResult(text: content.trimmingCharacters(in: .whitespacesAndNewlines), confidence: 0.9)
-        } else {
+        guard let jsonResponse = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            logger.error("❌ Invalid JSON response from Azure OpenAI")
             throw AppError.invalidConfiguration
         }
+        
+        guard let choices = jsonResponse["choices"] as? [[String: Any]],
+              let firstChoice = choices.first,
+              let message = firstChoice["message"] as? [String: Any],
+              let content = message["content"] as? String else {
+            
+            logger.error("❌ Unexpected response format from Azure OpenAI")
+            if let errorInfo = jsonResponse["error"] as? [String: Any] {
+                logger.error("API Error: \(errorInfo)")
+            }
+            throw AppError.invalidConfiguration
+        }
+        
+        let cleanContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        if cleanContent.isEmpty {
+            logger.warning("⚠️ Azure OpenAI returned empty content")
+            throw AppError.invalidConfiguration
+        }
+        
+        logger.info("✅ Successfully parsed Azure OpenAI response - Content length: \(cleanContent.count)")
+        return SummaryResult(text: cleanContent, confidence: 0.9)
     }
 
     /// ルールベース要約を生成
@@ -318,16 +617,30 @@ final class TextProcessingService: TextProcessingServiceProtocol {
     
     /// 要約プロンプトを構築
     private func buildSummaryPrompt(_ text: String, language: String) -> String {
+        // カスタムプロンプトを使用する場合
+        if useCustomPrompt && !customSummaryPrompt.isEmpty {
+            return customSummaryPrompt.replacingOccurrences(of: "{text}", with: text)
+        }
+        
+        // デフォルトプロンプトを使用
         let isJapanese = language.starts(with: "ja")
+        let maxLength = self.maxSummaryLength
+        
         if isJapanese {
-            return "以下の通話内容を200文字以内で簡潔に要約してください。重要なポイント、決定事項、次のアクションを含めてください。\n\n通話内容:\n\(text)\n\n要約:"
+            return "以下の通話内容を\(maxLength)文字以内で簡潔に要約してください。重要なポイント、決定事項、次のアクションを含めてください。\n\n通話内容:\n\(text)\n\n要約:"
         } else {
-            return "Please provide a concise summary (within 200 words) of the following phone conversation. Include key points, decisions made, and next actions.\n\nConversation:\n\(text)\n\nSummary:"
+            return "Please provide a concise summary (within \(maxLength) words) of the following phone conversation. Include key points, decisions made, and next actions.\n\nConversation:\n\(text)\n\nSummary:"
         }
     }
     
     /// システムプロンプトを取得
     private func getSystemPrompt(for language: String) -> String {
+        // カスタムプロンプトを使用する場合
+        if useCustomPrompt && !customSystemPrompt.isEmpty {
+            return customSystemPrompt
+        }
+        
+        // デフォルトプロンプトを使用
         let isJapanese = language.starts(with: "ja")
         if isJapanese {
             return "あなたは電話会議の要約を専門とするアシスタントです。簡潔で分かりやすい要約を作成してください。"
@@ -356,13 +669,22 @@ final class TextProcessingService: TextProcessingServiceProtocol {
     
     /// TF-IDFベースでキーワードを抽出
     private func extractKeywordsWithTFIDF(_ text: String) -> [String] {
-        tokenizer.string = text
-        let tokens = tokenizer.tokens(for: text.startIndex..<text.endIndex)
+        // 空文字列や無効な入力をチェック
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            logger.warning("extractKeywordsWithTFIDF: Empty text provided")
+            return []
+        }
+        
+        // スレッドセーフティのため、メソッド内で新しいtokenizerインスタンスを作成
+        let localTokenizer = NLTokenizer(unit: .word)
+        localTokenizer.string = text
+        
+        let tokens = localTokenizer.tokens(for: text.startIndex..<text.endIndex)
         var wordCount: [String: Int] = [:]
         
         for token in tokens {
-            let word = String(text[token]).lowercased()
-            if word.count > 2 && !isStopWord(word) {
+            let word = String(text[token]).lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+            if word.count > 2 && !isStopWord(word) && !word.isEmpty {
                 wordCount[word, default: 0] += 1
             }
         }
@@ -372,30 +694,65 @@ final class TextProcessingService: TextProcessingServiceProtocol {
     
     /// 固有名詞を抽出
     private func extractNamedEntities(_ text: String) -> [String] {
-        tagger.string = text
-        var entities: [String] = []
-        tagger.enumerateTags(in: text.startIndex..<text.endIndex, unit: .word, scheme: .nameType) { tag, range in
-            if let tag = tag, tag == .personalName || tag == .organizationName || tag == .placeName {
-                entities.append(String(text[range]))
-            }
-            return true
+        // 空文字列や無効な入力をチェック
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            logger.warning("extractNamedEntities: Empty text provided")
+            return []
         }
+        
+        // スレッドセーフティのため、メソッド内で新しいtaggerインスタンスを作成
+        let localTagger = NLTagger(tagSchemes: [.nameType])
+        localTagger.string = text
+        
+        var entities: [String] = []
+        
+        do {
+            localTagger.enumerateTags(in: text.startIndex..<text.endIndex, unit: .word, scheme: .nameType) { tag, range in
+                if let tag = tag, tag == .personalName || tag == .organizationName || tag == .placeName {
+                    let entity = String(text[range]).trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !entity.isEmpty {
+                        entities.append(entity)
+                    }
+                }
+                return true
+            }
+        } catch {
+            logger.error("Error in extractNamedEntities: \(error.localizedDescription)")
+            return []
+        }
+        
         return Array(Set(entities))
     }
     
     /// 重要語句を抽出
     private func extractImportantPhrases(_ text: String) -> [String] {
-        tagger.string = text
-        var phrases: [String] = []
-        tagger.enumerateTags(in: text.startIndex..<text.endIndex, unit: .word, scheme: .lexicalClass) { tag, range in
-            if tag == .noun {
-                let word = String(text[range])
-                if word.count > 2 && !isStopWord(word) {
-                    phrases.append(word)
-                }
-            }
-            return true
+        // 空文字列や無効な入力をチェック
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            logger.warning("extractImportantPhrases: Empty text provided")
+            return []
         }
+        
+        // スレッドセーフティのため、メソッド内で新しいtaggerインスタンスを作成
+        let localTagger = NLTagger(tagSchemes: [.lexicalClass])
+        localTagger.string = text
+        
+        var phrases: [String] = []
+        
+        do {
+            localTagger.enumerateTags(in: text.startIndex..<text.endIndex, unit: .word, scheme: .lexicalClass) { tag, range in
+                if tag == .noun {
+                    let word = String(text[range]).trimmingCharacters(in: .whitespacesAndNewlines)
+                    if word.count > 2 && !isStopWord(word) && !word.isEmpty {
+                        phrases.append(word)
+                    }
+                }
+                return true
+            }
+        } catch {
+            logger.error("Error in extractImportantPhrases: \(error.localizedDescription)")
+            return []
+        }
+        
         return Array(Set(phrases))
     }
     
@@ -420,8 +777,10 @@ final class TextProcessingService: TextProcessingServiceProtocol {
         if language.starts(with: "ja") {
             return Double(text.count) / 400.0 * 60.0
         } else {
-            tokenizer.string = text
-            let tokens = tokenizer.tokens(for: text.startIndex..<text.endIndex)
+            // スレッドセーフティのため、メソッド内で新しいtokenizer インスタンスを作成
+            let localTokenizer = NLTokenizer(unit: .word)
+            localTokenizer.string = text
+            let tokens = localTokenizer.tokens(for: text.startIndex..<text.endIndex)
             return Double(tokens.count) / 150.0 * 60.0
         }
     }

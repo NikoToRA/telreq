@@ -62,6 +62,8 @@ final class AudioCaptureService: NSObject, AudioCaptureServiceProtocol {
     
     deinit {
         stopCapture()
+        // 確実にタイマーを停止
+        stopQualityMonitoring()
         logger.info("AudioCaptureService deinitialized")
     }
     
@@ -287,11 +289,15 @@ final class AudioCaptureService: NSObject, AudioCaptureServiceProtocol {
         // 音声レベルを計算
         calculateAudioLevel(from: processedBuffer)
         
-        // デリゲートに通知
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-            self.delegate?.audioCapture(didReceiveBuffer: processedBuffer)
-            self.delegate?.audioCapture(didUpdateLevel: self.audioLevel)
+        // デリゲートに安全に通知
+        guard let delegate = delegate else { return }
+        
+        DispatchQueue.main.async { [weak self, weak delegate] in
+            guard let self = self, let delegate = delegate else {
+                return
+            }
+            delegate.audioCapture(didReceiveBuffer: processedBuffer)
+            delegate.audioCapture(didUpdateLevel: self.audioLevel)
         }
     }
     
@@ -365,14 +371,14 @@ final class AudioCaptureService: NSObject, AudioCaptureServiceProtocol {
         logger.info("Starting quality monitoring")
         
         qualityMonitorTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
+            guard let strongSelf = self else { return }
             
-            let quality = self.monitorAudioQuality()
-            self.logger.debug("Audio quality: \(quality.rawValue), level: \(self.audioLevel)")
+            let quality = strongSelf.monitorAudioQuality()
+            strongSelf.logger.debug("Audio quality: \(quality.rawValue), level: \(strongSelf.audioLevel)")
             
             // 品質が低下した場合の警告
             if quality == .poor {
-                self.logger.warning("Poor audio quality detected")
+                strongSelf.logger.warning("Poor audio quality detected")
             }
         }
     }

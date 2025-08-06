@@ -201,27 +201,39 @@ struct CallHistoryRow: View {
                 }
                 .frame(width: 24)
                 
-                VStack(alignment: .leading, spacing: 4) {
-                    // 参加者番号
-                    Text(formatPhoneNumber(record.participantNumber))
-                        .font(.headline)
-                        .foregroundColor(.primary)
+                VStack(alignment: .leading, spacing: 6) {
+                    // 録音タイトルと時間を一行で表示
+                    HStack {
+                        Text(formatRecordingTitle(record.participantNumber))
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                        
+                        Spacer()
+                        
+                        Text(formatDuration(record.duration))
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.blue)
+                    }
                     
-                    // 要約プレビュー
-                    Text(record.summaryPreview)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .lineLimit(2)
+                    // 要約プレビュー（より見やすく）
+                    if !record.summaryPreview.isEmpty {
+                        Text(record.summaryPreview)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                    } else {
+                        Text("音声処理中...")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .italic()
+                    }
                     
                     // メタデータ
                     HStack(spacing: 8) {
                         // 時刻
                         Text(formatTimestamp(record.timestamp))
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        
-                        // 時間
-                        Text(formatDuration(record.duration))
                             .font(.caption)
                             .foregroundColor(.secondary)
                         
@@ -239,7 +251,7 @@ struct CallHistoryRow: View {
                         
                         // 音声ファイルインジケーター
                         if record.hasAudio {
-                            Image(systemName: "speaker.wave.2.fill")
+                            Image(systemName: "waveform")
                                 .font(.caption)
                                 .foregroundColor(.green)
                         }
@@ -300,6 +312,14 @@ struct CallHistoryRow: View {
     }
     
     // MARK: - Helper Methods
+    
+    private func formatRecordingTitle(_ participantNumber: String) -> String {
+        if participantNumber == "Manual Recording" {
+            return "録音記録"
+        } else {
+            return participantNumber
+        }
+    }
     
     private func formatPhoneNumber(_ number: String) -> String {
         // 電話番号のフォーマット
