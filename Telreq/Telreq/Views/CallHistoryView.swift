@@ -577,16 +577,21 @@ class CallHistoryViewModel: ObservableObject {
         hasMoreData = true
         
         do {
+            // ページ番号をリセット
+            currentPage = 0
+            
             let records = try await serviceContainer?.offlineDataManager.loadCallHistory(
                 limit: pageSize,
                 offset: currentPage * pageSize
             ) ?? []
             
-            callRecords = records
-            currentPage += 1
+            // 重複を排除して新しいデータで置き換え
+            let uniqueRecords = Array(Set(records))
+            callRecords = uniqueRecords
+            currentPage = 1
             hasMoreData = records.count == pageSize
             
-            logger.info("Loaded \(records.count) call records")
+            logger.info("Loaded \(uniqueRecords.count) unique call records")
         } catch {
             logger.error("Failed to load call history: \(error.localizedDescription)")
             showError("通話履歴の読み込みに失敗しました", canRetry: true)
@@ -607,11 +612,15 @@ class CallHistoryViewModel: ObservableObject {
                 offset: currentPage * pageSize
             ) ?? []
             
-            callRecords.append(contentsOf: records)
+            // 重複を排除してから追加
+            let existingIds = Set(callRecords.map { $0.id })
+            let newRecords = records.filter { !existingIds.contains($0.id) }
+            
+            callRecords.append(contentsOf: newRecords)
             currentPage += 1
             hasMoreData = records.count == pageSize
             
-            logger.info("Loaded \(records.count) additional call records")
+            logger.info("Loaded \(newRecords.count) new unique call records (filtered from \(records.count))")
         } catch {
             logger.error("Failed to load more call history: \(error.localizedDescription)")
             showError("追加の通話履歴の読み込みに失敗しました")

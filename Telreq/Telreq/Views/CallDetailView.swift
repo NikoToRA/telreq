@@ -38,8 +38,7 @@ struct CallDetailView: View {
                         // 要約セクション
                         summarySection
                         
-                        // キーワードセクション
-                        keywordsSection
+                        // キーワードセクション（削除済み）
                         
                         // 転写テキストセクション
                         transcriptionSection
@@ -217,23 +216,14 @@ struct CallDetailView: View {
             }
             
             // アクションアイテム
-            if let actionItems = viewModel.callDetails?.summary.actionItems, !actionItems.isEmpty {
+            // actionItems機能は削除済み
+            if false {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("アクションアイテム")
                         .font(.subheadline)
                         .fontWeight(.semibold)
                     
-                    ForEach(actionItems, id: \.self) { item in
-                        HStack(alignment: .top, spacing: 8) {
-                            Image(systemName: "checkmark.circle")
-                                .foregroundColor(.blue)
-                                .font(.caption)
-                            
-                            Text(item)
-                                .font(.caption)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
+                    // アクションアイテム表示（削除済み）
                 }
                 .padding(.top, 8)
             }
@@ -243,32 +233,8 @@ struct CallDetailView: View {
         .cornerRadius(12)
     }
     
-    /// キーワードセクション
-    private var keywordsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("キーワード")
-                .font(.headline)
-                .fontWeight(.semibold)
-            
-            if let keyPoints = viewModel.callDetails?.summary.keyPoints, !keyPoints.isEmpty {
-                LazyVGrid(columns: [
-                    GridItem(.adaptive(minimum: 100), spacing: 8)
-                ], spacing: 8) {
-                    ForEach(keyPoints, id: \.self) { keyword in
-                        KeywordTagView(text: keyword)
-                    }
-                }
-            } else {
-                Text("キーワードを抽出中...")
-                    .font(.body)
-                    .foregroundColor(.secondary)
-                    .redacted(reason: viewModel.isLoading ? .placeholder : [])
-            }
-        }
-        .padding()
-        .background(Color(UIColor.secondarySystemBackground))
-        .cornerRadius(12)
-    }
+    // キーワードセクション（削除済み）
+    // keyPointsは要約の重要ポイントとして別途表示
     
     /// 転写テキストセクション
     private var transcriptionSection: some View {

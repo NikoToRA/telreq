@@ -1102,7 +1102,6 @@ extension CallManager: SpeechRecognitionDelegate {
                 summary: "音声認識は完了しましたが、AI処理に失敗しました",
                 duration: 0,
                 participants: ["Unknown"],
-                actionItems: [],
                 tags: [],
                 confidence: result.confidence
             )
@@ -1180,7 +1179,14 @@ extension CallManager: SpeechRecognitionDelegate {
         
         await MainActor.run {
             // デリゲートに通知（ViewModelが受け取る）
-            delegate?.callManager(didCompleteCallProcessing: data, summary: summary)
+            let result = CallProcessingResult(
+                callData: data,
+                summary: summary,
+                todos: [],
+                processingTime: 0,
+                confidence: summary.confidence
+            )
+            delegate?.callManager(didCompleteCallProcessing: result)
         }
     }
 }

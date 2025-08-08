@@ -201,13 +201,22 @@ struct ContentView: View {
                                     
                                     // アイコンとテキスト
                                     VStack(spacing: 12) {
-                                        Image(systemName: isRecording ? "stop.fill" : "mic.fill")
-                                            .font(.system(size: 50, weight: .medium))
-                                            .foregroundColor(.white)
-                                            .scaleEffect(isRecording ? 1.2 : 1.0)
-                                            .animation(.easeInOut(duration: 0.3), value: isRecording)
+                                        if isProcessing {
+                                            // 処理中のロゴ回転
+                                            Image(systemName: "arrow.triangle.2.circlepath")
+                                                .font(.system(size: 50, weight: .medium))
+                                                .foregroundColor(.white)
+                                                .rotationEffect(.degrees(isProcessing ? 360 : 0))
+                                                .animation(.linear(duration: 2.0).repeatForever(autoreverses: false), value: isProcessing)
+                                        } else {
+                                            Image(systemName: isRecording ? "stop.fill" : "mic.fill")
+                                                .font(.system(size: 50, weight: .medium))
+                                                .foregroundColor(.white)
+                                                .scaleEffect(isRecording ? 1.2 : 1.0)
+                                                .animation(.easeInOut(duration: 0.3), value: isRecording)
+                                        }
                                         
-                                        Text(isRecording ? "録音停止" : "録音開始")
+                                        Text(isProcessing ? "処理中" : (isRecording ? "録音停止" : "録音開始"))
                                             .font(.title2)
                                             .fontWeight(.bold)
                                             .foregroundColor(.white)
@@ -238,6 +247,28 @@ struct ContentView: View {
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 8)
                                 .background(Color.red.opacity(0.1))
+                                .cornerRadius(20)
+                            } else if isProcessing {
+                                HStack(spacing: 8) {
+                                    // 動的なローディングインジケーター
+                                    HStack(spacing: 4) {
+                                        ForEach(0..<3) { index in
+                                            Circle()
+                                                .fill(Color.blue)
+                                                .frame(width: 6, height: 6)
+                                                .scaleEffect(isProcessing ? 1.5 : 1.0)
+                                                .animation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true).delay(Double(index) * 0.2), value: isProcessing)
+                                        }
+                                    }
+                                    
+                                    Text("文字起こし中...")
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                        .foregroundColor(.blue)
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(Color.blue.opacity(0.1))
                                 .cornerRadius(20)
                             }
                         }
@@ -566,12 +597,12 @@ struct ContentView: View {
                     
                     // ポップアップ用データ設定
                     currentSummary = summary.summary
-                    currentTodos = summary.actionItems
+                    currentTodos = []
                     showingSummaryPopup = true
                     
                     // ViewModelも更新（履歴表示用）
                     contentViewModel.latestSummary = summary.summary
-                    contentViewModel.latestTodos = summary.actionItems
+                    contentViewModel.latestTodos = []
                 }
                 
             } catch {
@@ -631,18 +662,11 @@ struct ContentView: View {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
         
-        let actionItems = sentences.filter { sentence in
-            actionKeywords.contains { keyword in
-                sentence.contains(keyword)
-            }
-        }.prefix(5).map { $0 }
-        
         return CallSummary(
             keyPoints: Array(sentences.prefix(3)),
             summary: summary,
             duration: 0,
             participants: ["録音者"],
-            actionItems: Array(actionItems),
             tags: ["ローカル処理"],
             confidence: 0.7
         )
@@ -873,12 +897,13 @@ class ContentViewModel: ObservableObject, CallManagerDelegate {
         print("Call ended: \(callInfo.phoneNumber)")
     }
     
-    func callManager(didCompleteCallProcessing data: StructuredCallData, summary: CallSummary) {
+    func callManager(didCompleteCallProcessing result: CallProcessingResult) {
         DispatchQueue.main.async {
-            self.currentTranscription = data.transcriptionText
-            self.latestSummary = summary.summary
-            self.latestTodos = summary.actionItems
-            print("Call processing completed - Summary: \(summary.summary)")
+            // 文字起こしは一瞬見えるのを防ぐため設定しない
+            // self.currentTranscription = result.callData.transcriptionText
+            self.latestSummary = result.summary.summary
+            self.latestTodos = result.todos.map { $0.content }
+            print("Call processing completed - Summary: \(result.summary.summary)")
             print("Action items: \(self.latestTodos)")
         }
     }

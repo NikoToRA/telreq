@@ -346,7 +346,6 @@ final class DummySharingService: SharingServiceProtocol {
                 summary: "",
                 duration: 0,
                 participants: [],
-                actionItems: [],
                 tags: [],
                 confidence: 0
             ),

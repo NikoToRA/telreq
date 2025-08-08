@@ -50,7 +50,6 @@ struct CallSummary: Codable {
     let summary: String
     let duration: TimeInterval
     let participants: [String]
-    let actionItems: [String]
     let tags: [String]
     let confidence: Double
     
@@ -59,7 +58,6 @@ struct CallSummary: Codable {
         summary: String,
         duration: TimeInterval,
         participants: [String],
-        actionItems: [String] = [],
         tags: [String] = [],
         confidence: Double
     ) {
@@ -67,7 +65,6 @@ struct CallSummary: Codable {
         self.summary = summary
         self.duration = duration
         self.participants = participants
-        self.actionItems = actionItems
         self.tags = tags
         self.confidence = confidence
     }

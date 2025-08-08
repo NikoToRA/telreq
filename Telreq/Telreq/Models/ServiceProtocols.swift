@@ -144,11 +144,9 @@ protocol TextProcessingServiceProtocol: AnyObject {
     /// 通話データを構造化
     func structureCallData(_ text: String, metadata: CallMetadata) async throws -> StructuredCallData
     
-    /// キーワードを抽出
-    func extractKeywords(from text: String) async throws -> [String]
+    /// 要約とToDoを同時抽出
+    func extractSummaryAndTodos(from text: String, callData: StructuredCallData) async throws -> CallProcessingResult
     
-    /// アクションアイテムを抽出
-    func extractActionItems(from text: String) async throws -> [String]
     
     /// 発言者を識別（可能な場合）
     func identifySpeakers(in text: String) async throws -> [String]
@@ -436,8 +434,17 @@ enum AppError: LocalizedError {
 protocol CallManagerDelegate: AnyObject {
     func callManager(didStartCall callInfo: CallInfo)
     func callManager(didEndCall callInfo: CallInfo)
-    func callManager(didCompleteCallProcessing data: StructuredCallData, summary: CallSummary)
+    func callManager(didCompleteCallProcessing result: CallProcessingResult)
     func callManager(didFailWithError error: Error)
+}
+
+/// 通話処理結果
+struct CallProcessingResult {
+    let callData: StructuredCallData
+    let summary: CallSummary
+    let todos: [ToDoItem]
+    let processingTime: TimeInterval
+    let confidence: Double
 }
 
 // MARK: - Azure Service Configurations

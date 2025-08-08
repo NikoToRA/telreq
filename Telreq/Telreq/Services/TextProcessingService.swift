@@ -26,6 +26,21 @@ actor TextProcessingActor {
 /// 発言者識別、言語検出、品質評価を提供します。
 final class TextProcessingService: TextProcessingServiceProtocol {
     
+    // MARK: - New Protocol Method Implementation
+    
+    func extractSummaryAndTodos(from text: String, callData: StructuredCallData) async throws -> CallProcessingResult {
+        // 基本実装：要約を抽出し、ToDoは外部サービスで処理
+        let summary = try await summarizeText(text)
+        
+        return CallProcessingResult(
+            callData: callData,
+            summary: summary,
+            todos: [], // ToDoは別サービスで抽出
+            processingTime: 0,
+            confidence: summary.confidence
+        )
+    }
+    
     // MARK: - Properties
     
     /// ログ出力用
@@ -154,7 +169,6 @@ final class TextProcessingService: TextProcessingServiceProtocol {
                 summary: "音声認識データがありませんでした",
                 duration: 0,
                 participants: ["Unknown"],
-                actionItems: [],
                 tags: ["no-audio"],
                 confidence: 0.0
             )
@@ -247,7 +261,6 @@ final class TextProcessingService: TextProcessingServiceProtocol {
         // 各タスクを設定に応じて安全に実行（エラーハンドリング付き）
         var keyPoints: [String]
         var keywords: [String]
-        var actionItems: [String]
         var participants: [String]
         
         let shouldIncludeKeywords = self.includeKeywords
@@ -258,21 +271,18 @@ final class TextProcessingService: TextProcessingServiceProtocol {
         do {
             async let keyPointsTask = extractKeyPoints(from: text)
             async let keywordsTask: [String] = shouldIncludeKeywords ? self.extractKeywords(from: text) : []
-            async let actionItemsTask: [String] = shouldIncludeActionItems ? self.extractActionItems(from: text) : []
             async let participantsTask = self.identifySpeakers(in: text)
             
             keyPoints = await keyPointsTask
             keywords = shouldIncludeKeywords ? (try await keywordsTask) : []
-            actionItems = shouldIncludeActionItems ? (try await actionItemsTask) : []
             participants = try await participantsTask
             
-            logger.info("📊 Extracted - Keywords: \(keywords.count), ActionItems: \(actionItems.count)")
+            logger.info("📊 Extracted - Keywords: \(keywords.count)")
             
         } catch {
             logger.warning("Some extraction tasks failed: \(error.localizedDescription), using fallback values")
             keyPoints = ["要約処理中にエラーが発生しました"]
             keywords = []
-            actionItems = []
             participants = ["Unknown"]
         }
         
@@ -281,7 +291,6 @@ final class TextProcessingService: TextProcessingServiceProtocol {
             summary: summaryText,
             duration: estimateTextDuration(text),
             participants: participants,
-            actionItems: actionItems,
             tags: keywords,
             confidence: confidence
         )
@@ -346,8 +355,8 @@ final class TextProcessingService: TextProcessingServiceProtocol {
         }
     }
     
-    /// アクションアイテムを抽出
-    func extractActionItems(from text: String) async throws -> [String] {
+    /// アクションアイテムを抽出（削除済み機能のスタブ）
+    private func extractActionItems(from text: String) async throws -> [String] {
         logger.info("Extracting action items from text")
         
         var actionItems: [String] = []
